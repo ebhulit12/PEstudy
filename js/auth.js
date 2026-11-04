@@ -1,6 +1,7 @@
 /* Authentication & sync.
- *  - Cloud accounts: Firebase Auth (email/password, Google) + Firestore (one doc per user).
- *    Enabled only when APP_CONFIG.firebase is set. Progress syncs across devices.
+ *  - Accounts: hosted by this site's own Vercel Functions (/api/auth, /api/progress) backed by
+ *    a Redis database connected in the Vercel dashboard. Progress syncs across devices.
+ *    Enabled automatically when /api/auth reports a database is connected.
  *  - Device profiles: multiple named profiles stored in this browser, optional PIN.
  *    (A PIN only keeps housemates out of each other's stats — it is not real security.)
  *  - Guest: a single unnamed profile on this device.
@@ -8,19 +9,40 @@
 (function (global) {
   'use strict';
   const CFG = global.APP_CONFIG || {};
+  const API = (CFG.apiBase || '') + '/api';
   const SESSION_KEY = 'pe-mdm-prep.session';
   const PROFILES_KEY = 'pe-mdm-prep.profiles';
-  const FB_VER = '10.12.2';
 
   let user = null;          // { type: 'cloud'|'local'|'guest', id, name, email? }
-  let fb = null;            // { auth, db }
-  let status = 'idle';      // idle | syncing | synced | error | offline
-  let lastSync = null, lastPull = 0, pushTimer = null, statusMsg = '';
+  let cloudEnabled = false;
+  let rev = '0';            // server revision of this user's progress
+  let status = 'idle';      // idle | pending | syncing | synced | error | offline
+  let lastSync = null, lastPull = 0, pushTimer = null, statusMsg = '', inflight = null;
   const listeners = [];
   const emit = (evt) => listeners.forEach((fn) => { try { fn(evt); } catch (e) { console.error(e); } });
 
   const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* ignore */ } };
+
+  // ---------------- API helper ----------------
+  async function api(path, { method = 'GET', body, timeout = 15000 } = {}) {
+    const ctl = global.AbortController ? new AbortController() : null;
+    const t = ctl && setTimeout(() => ctl.abort(), timeout);
+    let r;
+    try {
+      r = await fetch(API + path, {
+        method, credentials: 'same-origin', cache: 'no-store', signal: ctl && ctl.signal,
+        headers: body ? { 'Content-Type': 'application/json' } : {},
+        body: body ? JSON.stringify(body) : undefined
+      });
+    } catch (e) {
+      throw Object.assign(new Error(navigator.onLine === false ? 'You appear to be offline.' : 'Could not reach the server.'), { code: 'network' });
+    } finally { if (t) clearTimeout(t); }
+    let j = {};
+    try { j = await r.json(); } catch (e) { /* non-JSON (e.g. static host without /api) */ }
+    if (!r.ok) throw Object.assign(new Error(j.error || `Request failed (${r.status})`), { status: r.status, data: j });
+    return j;
+  }
 
   // ---------------- hashing (for device-profile PINs) ----------------
   async function hash(text) {
@@ -85,47 +107,25 @@
     emit('user');
   }
 
-  // ---------------- Firebase (cloud) ----------------
-  const cloudEnabled = !!(CFG.firebase && CFG.firebase.apiKey);
-  function loadScript(src) {
-    return new Promise((res, rej) => {
-      const s = document.createElement('script');
-      s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src));
-      document.head.appendChild(s);
-    });
-  }
-  async function initFirebase() {
-    if (fb) return fb;
-    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
-    await loadScript(base + 'firebase-app-compat.js');
-    await Promise.all([loadScript(base + 'firebase-auth-compat.js'), loadScript(base + 'firebase-firestore-compat.js')]);
-    const app = global.firebase.apps.length ? global.firebase.app() : global.firebase.initializeApp(CFG.firebase);
-    fb = { auth: app.auth(), db: app.firestore() };
-    return fb;
-  }
-  const userDoc = () => fb.db.collection('users').doc(user.id);
-
+  // ---------------- cloud accounts ----------------
   function setStatus(s, msg) { status = s; statusMsg = msg || ''; if (s === 'synced') lastSync = Date.now(); emit('sync'); }
+  const asCloudUser = (u) => ({ type: 'cloud', id: u.id, name: u.name, email: u.email });
 
-  async function activateCloud(fu) {
-    user = { type: 'cloud', id: fu.uid, name: fu.displayName || (fu.email || '').split('@')[0] || 'Student', email: fu.email, photo: fu.photoURL };
-    Store.open('cloud:' + fu.uid);
-    lsSet(SESSION_KEY, { type: 'cloud', id: fu.uid });
-    const isNew = await pull(true);
-    emit('user');
-    return isNew;
+  function sessionLost() {
+    setStatus('error', 'You were signed out (session expired or password changed). Sign in again to keep syncing — your progress is safe on this device.');
   }
 
-  /** Pull the cloud copy and merge it in. Returns true if no cloud copy existed yet. */
+  /** Merge server copy into local; returns true if no server copy existed yet. */
   async function pull(initial) {
-    if (!user || user.type !== 'cloud' || !fb) return false;
-    if (!navigator.onLine) { setStatus('offline', 'Offline — changes are saved on this device and will sync later.'); return false; }
+    if (!user || user.type !== 'cloud') return false;
+    if (navigator.onLine === false) { setStatus('offline', 'Offline — changes are saved on this device and will sync later.'); return false; }
     setStatus('syncing');
     try {
-      const snap = await userDoc().get();
+      const r = await api('/progress');
       lastPull = Date.now();
-      if (!snap.exists) { await push(); return true; }
-      const remote = JSON.parse(snap.data().data || '{}');
+      rev = r.rev || '0';
+      if (!r.data) { await push(); return true; }
+      const remote = JSON.parse(r.data);
       const before = JSON.stringify(Store.s);
       const merged = Store.merge(Store.s, remote);
       const changedLocal = JSON.stringify(merged) !== before;
@@ -135,97 +135,88 @@
       if (changedLocal && !initial) emit('remote-update');
       return false;
     } catch (e) {
-      console.error(e);
-      setStatus('error', friendly(e));
+      if (e.status === 401) sessionLost();
+      else setStatus(e.code === 'network' ? 'offline' : 'error', e.message);
       return false;
     }
   }
-  /** Read-merge-write so two devices saving at nearly the same time never overwrite each other. */
+
+  /** Save with optimistic concurrency: on conflict, merge the newer server copy and retry. */
   async function push() {
     clearTimeout(pushTimer); pushTimer = null;
-    if (!user || user.type !== 'cloud' || !fb) return;
-    if (!navigator.onLine) { setStatus('offline', 'Offline — will sync when you reconnect.'); return; }
+    if (!user || user.type !== 'cloud') return;
+    if (inflight) { await inflight; return push(); }
+    if (navigator.onLine === false) { setStatus('offline', 'Offline — will sync when you reconnect.'); return; }
     setStatus('syncing');
-    try {
-      const snap = await userDoc().get();
-      if (snap.exists) {
-        const remote = JSON.parse(snap.data().data || '{}');
-        const before = JSON.stringify(Store.s);
-        const merged = Store.merge(Store.s, remote);
-        if (JSON.stringify(merged) !== before) { Store.replace(merged, true); emit('remote-update'); }
+    inflight = (async () => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          const r = await api('/progress', { method: 'PUT', body: { baseRev: rev, data: JSON.stringify(Store.s) } });
+          rev = r.rev; lastPull = Date.now();
+          setStatus('synced');
+          return;
+        } catch (e) {
+          if (e.status === 409 && e.data) {
+            rev = e.data.rev || '0';
+            if (e.data.data) {
+              const before = JSON.stringify(Store.s);
+              const merged = Store.merge(Store.s, JSON.parse(e.data.data));
+              Store.replace(merged, true);
+              if (JSON.stringify(merged) !== before) emit('remote-update');
+            }
+            continue;
+          }
+          if (e.status === 401) return sessionLost();
+          return setStatus(e.code === 'network' ? 'offline' : 'error', e.message);
+        }
       }
-      await userDoc().set({
-        data: JSON.stringify(Store.s),
-        name: user.name || '', email: user.email || '',
-        updatedAt: global.firebase.firestore.FieldValue.serverTimestamp()
-      });
-      lastPull = Date.now();
-      setStatus('synced');
-    } catch (e) {
-      console.error(e);
-      setStatus('error', friendly(e));
-    }
+      setStatus('error', 'Could not save after several tries — will retry shortly.');
+    })();
+    try { await inflight; } finally { inflight = null; }
   }
   function schedulePush() {
     if (!user || user.type !== 'cloud') return;
     clearTimeout(pushTimer);
     status = 'pending'; emit('sync');
-    pushTimer = setTimeout(push, 2500);
+    pushTimer = setTimeout(push, 2000);
   }
 
-  function friendly(e) {
-    const code = (e && e.code) || '';
-    const map = {
-      'auth/invalid-credential': 'Email or password is incorrect.',
-      'auth/invalid-login-credentials': 'Email or password is incorrect.',
-      'auth/wrong-password': 'Email or password is incorrect.',
-      'auth/user-not-found': 'No account found with that email.',
-      'auth/email-already-in-use': 'An account with that email already exists — try signing in.',
-      'auth/weak-password': 'Password must be at least 6 characters.',
-      'auth/invalid-email': 'That email address doesn’t look right.',
-      'auth/missing-password': 'Please enter a password.',
-      'auth/too-many-requests': 'Too many attempts. Please wait a few minutes and try again.',
-      'auth/network-request-failed': 'Network error — check your connection.',
-      'auth/popup-closed-by-user': 'Sign-in window was closed.',
-      'auth/popup-blocked': 'Your browser blocked the sign-in pop-up. Allow pop-ups for this site and try again.',
-      'auth/unauthorized-domain': 'This website’s domain isn’t authorized in Firebase (Authentication → Settings → Authorized domains).',
-      'auth/operation-not-allowed': 'This sign-in method isn’t enabled in the Firebase console.',
-      'auth/requires-recent-login': 'For security, please sign out and sign back in, then try again.',
-      'permission-denied': 'The cloud database refused access — check the Firestore security rules in README.md.',
-      unavailable: 'Cloud database unavailable — you may be offline.'
-    };
-    return map[code] || (e && e.message) || 'Something went wrong.';
+  async function startCloud(u) {
+    user = asCloudUser(u);
+    Store.open('cloud:' + u.id);
+    lsSet(SESSION_KEY, { type: 'cloud', id: u.id });
+    rev = '0';
+    const isNew = await pull(true);
+    emit('user');
+    return isNew;
   }
 
   async function signUp(email, password, name) {
-    await initFirebase();
-    const cred = await fb.auth.createUserWithEmailAndPassword(String(email).trim(), password);
-    if (name) { try { await cred.user.updateProfile({ displayName: String(name).trim().slice(0, 40) }); } catch (e) { /* non-fatal */ } }
-    return activateCloud(fb.auth.currentUser || cred.user);
+    const r = await api('/auth?action=signup', { method: 'POST', body: { email, password, name } });
+    const isNew = await startCloud(r.user);
+    return { isNew, recoveryCode: r.recoveryCode };
   }
   async function signIn(email, password) {
-    await initFirebase();
-    const cred = await fb.auth.signInWithEmailAndPassword(String(email).trim(), password);
-    return activateCloud(cred.user);
+    const r = await api('/auth?action=login', { method: 'POST', body: { email, password } });
+    return startCloud(r.user);
   }
-  async function signInGoogle() {
-    await initFirebase();
-    const cred = await fb.auth.signInWithPopup(new global.firebase.auth.GoogleAuthProvider());
-    return activateCloud(cred.user);
-  }
-  async function resetPassword(email) {
-    await initFirebase();
-    await fb.auth.sendPasswordResetEmail(String(email).trim());
+  async function recover(email, recoveryCode, password) {
+    const r = await api('/auth?action=recover', { method: 'POST', body: { email, recoveryCode, password } });
+    await startCloud(r.user);
+    return r.recoveryCode;
   }
   async function renameCloud(name) {
-    if (!fb || !fb.auth.currentUser) return;
-    await fb.auth.currentUser.updateProfile({ displayName: name });
-    user.name = name; emit('user'); schedulePush();
+    const r = await api('/auth?action=rename', { method: 'POST', body: { name } });
+    user.name = r.user.name; emit('user');
   }
-  async function deleteCloudAccount() {
-    if (!fb || !fb.auth.currentUser) return;
-    await userDoc().delete();
-    await fb.auth.currentUser.delete();
+  async function changePassword(password, newPassword) {
+    await api('/auth?action=change-password', { method: 'POST', body: { password, newPassword } });
+  }
+  async function newRecoveryCode(password) {
+    return (await api('/auth?action=new-recovery', { method: 'POST', body: { password } })).recoveryCode;
+  }
+  async function deleteCloudAccount(password) {
+    await api('/auth?action=delete', { method: 'POST', body: { password } });
     Store.remove('cloud:' + user.id);
     user = null;
     lsSet(SESSION_KEY, null);
@@ -233,36 +224,38 @@
   }
 
   async function signOut() {
-    if (user && user.type === 'cloud' && fb) {
+    if (user && user.type === 'cloud') {
       if (pushTimer) await push();
-      try { await fb.auth.signOut(); } catch (e) { /* ignore */ }
+      try { await api('/auth?action=logout', { method: 'POST' }); } catch (e) { /* ignore */ }
     }
     user = null;
     lsSet(SESSION_KEY, null);
     emit('user');
   }
 
+  const friendly = (e) => (e && e.message) || 'Something went wrong.';
+
   // ---------------- boot ----------------
   async function init() {
     Store.onSave(() => schedulePush());
     const sess = lsGet(SESSION_KEY, null);
-    if (cloudEnabled && sess && sess.type === 'cloud') {
+    let server = null;
+    if (location.protocol !== 'file:') {
       try {
-        await initFirebase();
-        const fu = await new Promise((res) => {
-          const off = fb.auth.onAuthStateChanged((u) => { off(); res(u); });
-          setTimeout(() => res(fb.auth.currentUser), 8000);
-        });
-        if (fu) {
-          // Show cached data immediately, then merge cloud data in the background
-          user = { type: 'cloud', id: fu.uid, name: fu.displayName || (fu.email || '').split('@')[0], email: fu.email, photo: fu.photoURL };
-          Store.open('cloud:' + fu.uid);
-          pull(false);
-        }
-      } catch (e) {
-        console.error(e);
-        statusMsg = 'Could not reach the sign-in service. ' + friendly(e);
-      }
+        server = await api('/auth?action=status', { timeout: 8000 });
+        cloudEnabled = !!server.configured;
+      } catch (e) { cloudEnabled = false; }
+    }
+    const wantsCloud = sess && sess.type === 'cloud';
+    if (cloudEnabled && server.user && (wantsCloud || !sess)) {
+      // Show cached data immediately, then merge server data in the background
+      user = asCloudUser(server.user);
+      Store.open('cloud:' + server.user.id);
+      lsSet(SESSION_KEY, { type: 'cloud', id: server.user.id });
+      pull(false);
+    } else if (wantsCloud) {
+      lsSet(SESSION_KEY, null); // server session ended — ask to sign in again
+      if (cloudEnabled) statusMsg = 'Your session ended. Please sign in again — progress saved on this device will sync.';
     } else if (sess && sess.type === 'local' && CFG.allowLocalProfiles !== false) {
       const p = profiles().find((x) => x.id === sess.id);
       if (p && !p.pinHash) activate({ type: 'local', id: p.id, name: p.name }); // PIN profiles must re-enter PIN
@@ -271,10 +264,17 @@
     }
     if (cloudEnabled) {
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && user && user.type === 'cloud' && Date.now() - lastPull > 30000) pull(false);
+        if (!user || user.type !== 'cloud') return;
+        if (document.visibilityState === 'visible' && Date.now() - lastPull > 30000) pull(false);
         if (document.visibilityState === 'hidden' && pushTimer) push();
       });
       global.addEventListener('online', () => { if (user && user.type === 'cloud') pull(false); });
+      global.addEventListener('pagehide', () => {
+        // best-effort save if the tab closes with unsaved changes
+        if (pushTimer && user && user.type === 'cloud') {
+          try { fetch(API + '/progress', { method: 'PUT', keepalive: true, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ baseRev: rev, data: JSON.stringify(Store.s) }) }); } catch (e) { /* ignore */ }
+        }
+      });
     }
     return user;
   }
@@ -284,12 +284,11 @@
     get user() { return user; },
     get cloudEnabled() { return cloudEnabled; },
     get localAllowed() { return CFG.allowLocalProfiles !== false; },
-    get googleEnabled() { return cloudEnabled && CFG.googleSignIn !== false; },
     get status() { return status; },
     get statusMsg() { return statusMsg; },
     get lastSync() { return lastSync; },
     profiles, profileSummary, createLocal, loginLocal, updateLocal, deleteLocal, loginGuest,
-    signUp, signIn, signInGoogle, resetPassword, renameCloud, deleteCloudAccount, signOut,
+    signUp, signIn, recover, renameCloud, changePassword, newRecoveryCode, deleteCloudAccount, signOut,
     syncNow: () => pull(false), friendly
   };
 })(window);

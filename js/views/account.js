@@ -18,7 +18,7 @@
   /** After creating a brand-new account/profile, offer to bring over guest progress. */
   function offerGuestImport() {
     const g = Store.peek('guest');
-    if (!g || !(g.attempts || []).length && !g.plan) return;
+    if (!g || (!(g.attempts || []).length && !g.plan)) return;
     if (Store.key && Store.key.endsWith(':guest')) return;
     if (confirm(`Found progress from the Guest profile on this device (${(g.attempts || []).length} attempts${g.plan ? ', a study plan' : ''}).\n\nCopy it into your new account?`)) {
       Store.replace(Store.merge(Store.s, g));
@@ -34,11 +34,31 @@
     global.App && App.refresh();
   }
 
+  /** Full-card screen showing a recovery code the user must save. */
+  function recoveryScreen(container, code, intro, onContinue) {
+    container.innerHTML = `
+      <h2>🔑 Save your recovery code</h2>
+      <p class="muted small">${intro} This site doesn't send emails, so this code is the <b>only way to reset your password</b> if you forget it. It is shown only once.</p>
+      <div class="recovery-code" id="rcode">${esc(code)}</div>
+      <div class="row gap wrap">
+        <button class="btn" id="rcCopy">📋 Copy</button>
+        <button class="btn" id="rcDl">⬇ Download .txt</button>
+      </div>
+      <label class="chk saved-chk"><input type="checkbox" id="rcSaved"> I saved my recovery code somewhere safe</label>
+      <button class="btn primary big full" id="rcGo" disabled>Continue</button>`;
+    $('#rcCopy', container).addEventListener('click', () => {
+      (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(() => U.toast('Copied'), () => U.toast('Select the code and copy it manually'));
+    });
+    $('#rcDl', container).addEventListener('click', () => U.download('pe-prep-recovery-code.txt', `PE MDM Prep recovery code\n${location.origin}\n\n${code}\n\nUse this with your email on the sign-in screen ("Forgot password?") to set a new password.\n`, 'text/plain'));
+    $('#rcSaved', container).addEventListener('change', (e) => ($('#rcGo', container).disabled = !e.target.checked));
+    $('#rcGo', container).addEventListener('click', onContinue);
+  }
+
   VIEWS.login = function (el) {
     if (Auth.user) { location.hash = '#/dashboard'; return; }
     const cloud = Auth.cloudEnabled, local = Auth.localAllowed;
     let tab = cloud ? 'cloud' : 'device';
-    let mode = 'signin'; // signin | signup | reset
+    let mode = 'signin'; // signin | signup | recover
 
     el.innerHTML = `
       <div class="login-wrap">
@@ -67,55 +87,57 @@
     const setTab = (t) => { tab = t; $$('.tab', el).forEach((b) => b.classList.toggle('active', b.dataset.tab === t)); render(); };
     $$('.tab', el).forEach((b) => b.addEventListener('click', () => setTab(b.dataset.tab)));
 
-    function busy(btn, on, label) { btn.disabled = on; if (label) btn.textContent = on ? 'Please wait…' : label; }
-    function err(msg) { const e = $('#authErr', el); e.innerHTML = msg ? `<div class="fb bad">${esc(msg)}</div>` : ''; }
-
-    function render() {
-      if (tab === 'cloud') return renderCloud();
-      renderDevice();
-    }
+    function busy(btn, on, label) { btn.disabled = on; btn.textContent = on ? 'Please wait…' : label; }
+    function err(msg) { const e = $('#authErr', el); if (e) e.innerHTML = msg ? `<div class="fb bad">${esc(msg)}</div>` : ''; }
+    const render = () => (tab === 'cloud' ? renderCloud() : renderDevice());
 
     function renderCloud() {
       if (!cloud) {
         body.innerHTML = `
           <h2>Sign in</h2>
-          <p class="muted">Cloud accounts (sync across phone, laptop and work computer) aren’t switched on for this site yet.</p>
-          <div class="callout"><b>Site owner:</b> follow “Setting up user accounts” in <code>README.md</code> — it takes about 10 minutes with a free Firebase project, then paste the config into <code>js/config.js</code>.</div>
+          <p class="muted">Online accounts (sync across phone, laptop and work computer) aren’t switched on for this site yet.</p>
+          <div class="callout"><b>Site owner:</b> in your Vercel project open <b>Storage → Create Database → Upstash (Redis)</b>, connect it to this project, and redeploy. See “Setting up user accounts” in <code>README.md</code>.</div>
           ${local ? '<button class="btn primary" id="goDevice">Use a profile on this device instead →</button>' : ''}`;
         const g = $('#goDevice', el); if (g) g.addEventListener('click', () => setTab('device'));
         return;
       }
+      const title = { signin: 'Welcome back', signup: 'Create your account', recover: 'Reset your password' }[mode];
+      const sub = { signin: 'Sign in to pick up where you left off.', signup: 'Your progress will sync to every device you sign in on.', recover: 'Enter your email, the recovery code you saved when you signed up, and a new password.' }[mode];
       body.innerHTML = `
-        <h2>${mode === 'signup' ? 'Create your account' : mode === 'reset' ? 'Reset password' : 'Welcome back'}</h2>
-        <p class="muted small">${mode === 'signup' ? 'Your progress will sync to every device you sign in on.' : mode === 'reset' ? 'We’ll email you a link to set a new password.' : 'Sign in to pick up where you left off.'}</p>
-        ${Auth.googleEnabled && mode !== 'reset' ? `<button class="btn big full google" id="google"><span class="g">G</span> Continue with Google</button><div class="or"><span>or</span></div>` : ''}
+        <h2>${title}</h2>
+        <p class="muted small">${sub}</p>
         <form id="cf" class="auth-form" novalidate>
-          ${mode === 'signup' ? '<label>Name<input id="cn" type="text" autocomplete="name" placeholder="Your name"></label>' : ''}
+          ${mode === 'signup' ? '<label>Name<input id="cn" type="text" autocomplete="name" maxlength="40" placeholder="Your name"></label>' : ''}
           <label>Email<input id="ce" type="email" autocomplete="email" required placeholder="you@example.com"></label>
-          ${mode !== 'reset' ? `<label>Password<input id="cp" type="password" autocomplete="${mode === 'signup' ? 'new-password' : 'current-password'}" required minlength="6" placeholder="${mode === 'signup' ? 'At least 6 characters' : ''}"></label>` : ''}
+          ${mode === 'recover' ? '<label>Recovery code<input id="cr" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"></label>' : ''}
+          <label>${mode === 'signin' ? 'Password' : 'New password'}<input id="cp" type="password" autocomplete="${mode === 'signin' ? 'current-password' : 'new-password'}" required minlength="8" placeholder="${mode === 'signin' ? '' : 'At least 8 characters'}"></label>
           <div id="authErr"></div>
-          <button class="btn primary big full" id="csub" type="submit">${mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Sign in'}</button>
+          <button class="btn primary big full" id="csub" type="submit">${{ signin: 'Sign in', signup: 'Create account', recover: 'Reset password & sign in' }[mode]}</button>
         </form>
         <div class="auth-links">
-          ${mode === 'signin' ? '<a href="javascript:void 0" data-mode="signup">Create an account</a><a href="javascript:void 0" data-mode="reset">Forgot password?</a>' : '<a href="javascript:void 0" data-mode="signin">← Back to sign in</a>'}
+          ${mode === 'signin' ? '<a href="javascript:void 0" data-mode="signup">Create an account</a><a href="javascript:void 0" data-mode="recover">Forgot password?</a>' : '<a href="javascript:void 0" data-mode="signin">← Back to sign in</a>'}
         </div>`;
       $$('[data-mode]', el).forEach((a) => a.addEventListener('click', () => { mode = a.dataset.mode; renderCloud(); }));
-      const g = $('#google', el);
-      if (g) g.addEventListener('click', async () => {
-        busy(g, true); err('');
-        try { const isNew = await Auth.signInGoogle(); if (isNew) offerGuestImport(); done(); }
-        catch (e) { err(Auth.friendly(e)); busy(g, false); g.innerHTML = '<span class="g">G</span> Continue with Google'; }
-      });
       $('#cf', el).addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = $('#csub', el), label = btn.textContent;
-        const email = $('#ce', el).value, pw = $('#cp', el) ? $('#cp', el).value : '';
+        const email = $('#ce', el).value.trim(), pw = $('#cp', el).value;
         if (!email) return err('Please enter your email.');
+        if (!pw) return err('Please enter a password.');
+        if (mode !== 'signin' && pw.length < 8) return err('Password must be at least 8 characters.');
         busy(btn, true, label); err('');
         try {
-          if (mode === 'reset') { await Auth.resetPassword(email); body.querySelector('#authErr').innerHTML = '<div class="fb ok">Check your inbox for a reset link.</div>'; busy(btn, false, label); return; }
-          const isNew = mode === 'signup' ? await Auth.signUp(email, pw, $('#cn', el).value) : await Auth.signIn(email, pw);
-          if (isNew) offerGuestImport();
+          if (mode === 'signup') {
+            const r = await Auth.signUp(email, pw, $('#cn', el).value);
+            recoveryScreen(body, r.recoveryCode, 'Account created!', () => { if (r.isNew) offerGuestImport(); done(); });
+            return;
+          }
+          if (mode === 'recover') {
+            const code = await Auth.recover(email, $('#cr', el).value, pw);
+            recoveryScreen(body, code, 'Password reset — your old recovery code no longer works. Here is your new one.', done);
+            return;
+          }
+          await Auth.signIn(email, pw);
           done();
         } catch (ex) { err(Auth.friendly(ex)); busy(btn, false, label); }
       });
@@ -144,7 +166,7 @@
       $$('.profile', el).forEach((b) => b.addEventListener('click', async () => {
         const p = list.find((x) => x.id === b.dataset.id);
         if (!p.pinHash) { await Auth.loginLocal(p.id); return done(); }
-        $('#pinBox', el).innerHTML = `<form id="pf2" class="auth-form inline"><label>PIN for ${esc(p.name)}<input id="pin" type="password" inputmode="numeric" autofocus></label><button class="btn primary" type="submit">Unlock</button></form>`;
+        $('#pinBox', el).innerHTML = `<form id="pf2" class="auth-form inline"><label>PIN for ${esc(p.name)}<input id="pin" type="password" inputmode="numeric"></label><button class="btn primary" type="submit">Unlock</button></form>`;
         $('#pin', el).focus();
         $('#pf2', el).addEventListener('submit', async (e) => {
           e.preventDefault();
@@ -166,19 +188,19 @@
   VIEWS.account = function (el) {
     const u = Auth.user;
     if (!u) { location.hash = '#/login'; return; }
-    const typeLabel = u.type === 'cloud' ? '☁️ Cloud account — syncs across devices' : u.type === 'local' ? '💻 Profile on this device' : '👤 Guest on this device';
+    const typeLabel = u.type === 'cloud' ? '☁️ Online account — syncs across devices' : u.type === 'local' ? '💻 Profile on this device' : '👤 Guest on this device';
     const prof = u.type === 'local' ? Auth.profiles().find((p) => p.id === u.id) : null;
     const st = Store.s;
     el.innerHTML = `
       <div class="page-head"><h1>👤 Account</h1></div>
       <div class="card account-head">
-        <span class="avatar xl">${u.photo ? `<img src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">` : esc(initials(u.name))}</span>
+        <span class="avatar xl">${esc(initials(u.name))}</span>
         <div><h2>${esc(u.name)}</h2><p class="muted">${u.email ? esc(u.email) + ' · ' : ''}${typeLabel}</p>
         <p class="small">${st.attempts.length} problems attempted · ${st.exams.length} practice exams · last active ${rel(st.lastActive)}</p></div>
       </div>
       ${u.type === 'cloud' ? `
       <div class="card"><div class="card-head"><h2>Sync</h2><span id="syncPill"></span></div>
-        <p class="muted small">Progress saves to this device instantly and to the cloud a few seconds later. When you open the site on another device, the two copies are merged — nothing you studied on either is lost.</p>
+        <p class="muted small">Progress saves to this device instantly and to your account a few seconds later. When you open the site on another device, the two copies are merged — nothing you studied on either is lost.</p>
         <button class="btn" id="syncNow">🔄 Sync now</button></div>` : ''}
       ${u.type === 'guest' ? `
       <div class="card"><h2>Save your progress to a profile</h2>
@@ -189,6 +211,18 @@
         ${u.type === 'local' ? `<form id="pinf" class="auth-form inline"><label>${prof && prof.pinHash ? 'Change PIN' : 'Add a PIN'}<input id="pinv" type="password" inputmode="numeric" maxlength="12" placeholder="4+ digits"></label><button class="btn" type="submit">Save PIN</button>
           ${prof && prof.pinHash ? '<button class="btn ghost" type="button" id="rmPin">Remove PIN</button>' : ''}</form>` : ''}
       </div>`}
+      ${u.type === 'cloud' ? `
+      <div class="card"><h2>Security</h2>
+        <form id="cpf" class="auth-form inline">
+          <label>Current password<input id="cpo" type="password" autocomplete="current-password"></label>
+          <label>New password<input id="cpn" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
+          <button class="btn" type="submit">Change password</button></form>
+        <p class="muted small">Changing your password signs out your other devices.</p>
+        <form id="nrf" class="auth-form inline">
+          <label>Lost your recovery code? Enter your password to get a new one<input id="nrp" type="password" autocomplete="current-password"></label>
+          <button class="btn" type="submit">New recovery code</button></form>
+        <div id="rcBox"></div>
+      </div>` : ''}
       <div class="card"><h2>Session</h2><div class="row gap wrap">
         <button class="btn" id="switch">🔁 Switch user</button>
         <button class="btn" id="signout">↩ Sign out</button>
@@ -196,7 +230,8 @@
       </div></div>
       ${u.type !== 'guest' ? `<div class="card danger-zone"><h2>Danger zone</h2>
         <p class="muted small">${u.type === 'cloud' ? 'Permanently deletes your account and all synced progress.' : 'Deletes this profile and its progress from this device.'}</p>
-        <button class="btn danger" id="del">Delete ${u.type === 'cloud' ? 'account' : 'profile'}</button></div>` : ''}`;
+        ${u.type === 'cloud' ? '<form id="delf" class="auth-form inline"><label>Confirm with your password<input id="delp" type="password" autocomplete="current-password"></label><button class="btn danger" type="submit">Delete account</button></form>' : '<button class="btn danger" id="del">Delete profile</button>'}
+      </div>` : ''}`;
 
     const pill = () => {
       const p = $('#syncPill', el); if (!p) return;
@@ -206,26 +241,43 @@
     };
     pill();
     const off = setInterval(pill, 2000);
-    const sn = $('#syncNow', el); if (sn) sn.addEventListener('click', async () => { await Auth.syncNow(); pill(); U.toast(Auth.status === 'synced' ? 'Synced ✓' : Auth.statusMsg || 'Sync attempted'); });
-    const tl = $('#toLogin', el); if (tl) tl.addEventListener('click', async () => { sessionStorage.setItem('pe-after-login', '#/dashboard'); await Auth.signOut(); location.hash = '#/login'; });
-    const rn = $('#rn', el); if (rn) rn.addEventListener('submit', async (e) => {
+    const on = (id, evt, fn) => { const x = $(id, el); if (x) x.addEventListener(evt, fn); };
+    on('#syncNow', 'click', async () => { await Auth.syncNow(); pill(); U.toast(Auth.status === 'synced' ? 'Synced ✓' : Auth.statusMsg || 'Sync attempted'); });
+    on('#toLogin', 'click', async () => { sessionStorage.setItem('pe-after-login', '#/dashboard'); await Auth.signOut(); location.hash = '#/login'; });
+    on('#rn', 'submit', async (e) => {
       e.preventDefault(); const v = $('#rnv', el).value.trim(); if (!v) return;
       try { if (u.type === 'cloud') await Auth.renameCloud(v); else await Auth.updateLocal(u.id, { name: v }); U.toast('Name updated'); VIEWS.account(el); } catch (ex) { U.toast(Auth.friendly(ex)); }
     });
-    const pf = $('#pinf', el); if (pf) pf.addEventListener('submit', async (e) => {
+    on('#pinf', 'submit', async (e) => {
       e.preventDefault(); const v = $('#pinv', el).value.trim();
       if (v.length < 4) return U.toast('PIN must be at least 4 characters');
       await Auth.updateLocal(u.id, { pin: v }); U.toast('PIN saved'); VIEWS.account(el);
     });
-    const rp = $('#rmPin', el); if (rp) rp.addEventListener('click', async () => { await Auth.updateLocal(u.id, { removePin: true }); U.toast('PIN removed'); VIEWS.account(el); });
-    $('#switch', el).addEventListener('click', async () => { await Auth.signOut(); location.hash = '#/login'; });
-    $('#signout', el).addEventListener('click', async () => { await Auth.signOut(); U.toast('Signed out'); location.hash = '#/login'; });
-    const del = $('#del', el); if (del) del.addEventListener('click', async () => {
-      if (!confirm(`Permanently delete ${u.type === 'cloud' ? 'your account and all synced progress' : `the profile "${u.name}" and its progress`}? This cannot be undone.`)) return;
+    on('#rmPin', 'click', async () => { await Auth.updateLocal(u.id, { removePin: true }); U.toast('PIN removed'); VIEWS.account(el); });
+    on('#cpf', 'submit', async (e) => {
+      e.preventDefault();
+      const n = $('#cpn', el).value;
+      if (n.length < 8) return U.toast('New password must be at least 8 characters');
+      try { await Auth.changePassword($('#cpo', el).value, n); U.toast('Password changed'); $('#cpo', el).value = $('#cpn', el).value = ''; } catch (ex) { U.toast(Auth.friendly(ex)); }
+    });
+    on('#nrf', 'submit', async (e) => {
+      e.preventDefault();
       try {
-        if (u.type === 'cloud') await Auth.deleteCloudAccount(); else Auth.deleteLocal(u.id);
-        U.toast('Deleted'); location.hash = '#/login';
+        const code = await Auth.newRecoveryCode($('#nrp', el).value);
+        recoveryScreen($('#rcBox', el), code, 'Your previous recovery code no longer works.', () => { $('#rcBox', el).innerHTML = '<div class="fb ok">New recovery code saved ✓</div>'; });
+        $('#nrp', el).value = '';
       } catch (ex) { U.toast(Auth.friendly(ex)); }
+    });
+    on('#switch', 'click', async () => { await Auth.signOut(); location.hash = '#/login'; });
+    on('#signout', 'click', async () => { await Auth.signOut(); U.toast('Signed out'); location.hash = '#/login'; });
+    on('#del', 'click', () => {
+      if (!confirm(`Permanently delete the profile "${u.name}" and its progress from this device? This cannot be undone.`)) return;
+      Auth.deleteLocal(u.id); U.toast('Profile deleted'); location.hash = '#/login';
+    });
+    on('#delf', 'submit', async (e) => {
+      e.preventDefault();
+      if (!confirm('Permanently delete your account and all synced progress? This cannot be undone.')) return;
+      try { await Auth.deleteCloudAccount($('#delp', el).value); U.toast('Account deleted'); location.hash = '#/login'; } catch (ex) { U.toast(Auth.friendly(ex)); }
     });
     return () => clearInterval(off);
   };

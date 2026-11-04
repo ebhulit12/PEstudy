@@ -3,7 +3,7 @@
 **Live site:** <https://pestudy-brown.vercel.app>
 
 A self-contained study site for the NCEES **PE Mechanical: Machine Design and Materials (MDM)** exam.
-No build step needed — open `index.html` in a browser, or host it free on **Vercel** (Hobby plan).
+No build step needed. Host it free on **Vercel** (Hobby plan), or open `index.html` locally.
 
 ## Features
 
@@ -17,10 +17,10 @@ No build step needed — open `index.html` in a browser, or host it free on **Ve
 | 🃏 **Flashcards** | 73 formula/concept cards with Leitner spaced repetition. |
 | ∑ **Formula Sheet** | Searchable, printable quick reference. |
 | 📈 **Progress** | Readiness score, accuracy by topic, activity heatmap, exam history, and backup export/import. |
-| 👤 **Logins** | Each person gets their own progress, plan and stats. **Cloud accounts** (email/password or Google, via free Firebase) sync across devices; **device profiles** (optional PIN) let several people share one browser; or continue as a guest. |
+| 👤 **Logins** | Each person gets their own progress, plan and stats. **Online accounts** (email + password, hosted on Vercel) sync across devices; **device profiles** (optional PIN) let several people share one browser; or continue as a guest. |
 | 🎯 **Exam Strategy** / 🔗 **Resources** | Exam format, time management, handbook tips, exam-day checklist, official NCEES links and recommended references. |
 
-Progress is saved per user. Device profiles and guests are stored in that browser's `localStorage`; cloud accounts are also synced to Firebase and merged across devices (nothing studied on one device is lost when you open another).
+Progress is saved per user. Device profiles and guests are stored in that browser's `localStorage`; online accounts are also synced to the site's database and merged across devices (nothing studied on one device is lost when you open another).
 
 ## Running it
 
@@ -41,38 +41,44 @@ Progress is saved per user. Device profiles and guests are stored in that browse
 
 After that, every `git push` redeploys automatically. On phones, use the browser's **Share → Add to Home Screen** to install it like an app. `vercel.json` adds clean URLs and a few security headers. Optional: add your own domain under *Project → Settings → Domains*.
 
-## Setting up user accounts (cloud sync)
+## Setting up user accounts
 
-The site is static (no server code), so accounts use **Firebase** (Google's free backend) for sign-in and storage. Until you do this, the login screen offers only *This device* profiles and guest mode, which work fine with no setup.
+Logins run entirely on Vercel:
 
-1. Go to <https://console.firebase.google.com>, click **Create a project**, and give it a name (Google Analytics is optional; you can turn it off).
-2. **Turn on sign-in:** *Build → Authentication → Get started → Sign-in method*.
-   - Enable **Email/Password**.
-   - Optional: enable **Google** (pick a support email). If you skip this, set `googleSignIn: false` in `js/config.js`.
-3. **Allow your site's domain:** *Authentication → Settings → Authorized domains → Add domain* and enter **`pestudy-brown.vercel.app`** (plus any custom domain you add later). `localhost` is already allowed for local testing. Preview deployments use different URLs (`pestudy-git-<branch>-<you>.vercel.app`), so sign-in only works on them if you add those domains too.
-4. **Create the database:** *Build → Firestore Database → Create database*, choose **production mode**, and pick a location near you.
-5. **Lock it down:** in Firestore, open the **Rules** tab, replace everything with the contents of [`firestore.rules`](firestore.rules) and click **Publish**. This makes sure each user can only read and write their own progress.
-6. **Get the web config:** *Project settings (gear icon) → General → Your apps →* the **`</>`** (Web) icon. Register an app (no Firebase Hosting needed), then copy the `firebaseConfig` values.
-7. Paste them into [`js/config.js`](js/config.js) in place of `firebase: null`:
-   ```js
-   firebase: {
-     apiKey: 'AIza…',
-     authDomain: 'your-project.firebaseapp.com',
-     projectId: 'your-project',
-     storageBucket: 'your-project.appspot.com',
-     messagingSenderId: '…',
-     appId: '…'
-   },
-   ```
-8. Commit and push. The login screen's **☁️ Account** tab now lets people create accounts.
+- **Vercel Functions** in [`api/`](api) handle sign-up, sign-in, sessions and progress sync. They have no dependencies and nothing to build.
+- A **Redis database** from the Vercel dashboard (Upstash, free tier) stores accounts and progress.
 
-**Is it safe to put that config in a public repo?** Yes. Firebase web config values are identifiers, not passwords; access is controlled by the security rules from step 5. Firebase's free *Spark* plan (50k reads / 20k writes per day) is far more than a study group will use.
+Until a database is connected, the login screen offers only *This device* profiles and guest mode.
 
-**Managing users:** you can see and disable accounts under *Authentication → Users*, and each user's saved progress lives at `users/{uid}` in Firestore.
+**One-time setup (about 3 minutes):**
 
-**Device profile PINs** only keep people sharing a computer out of each other's stats. They are not real security, since anyone with access to the browser can read its storage. Use cloud accounts when that matters.
+1. Open the project in the [Vercel dashboard](https://vercel.com/dashboard) and go to the **Storage** tab.
+2. Click **Create Database**, choose **Upstash → Redis** (*Serverless Redis*), and accept the free plan. Pick a region close to you, ideally the same as your functions (US East by default).
+3. When asked, **connect it to this project** for all environments (Production, Preview, Development). Vercel adds the connection settings as environment variables automatically (`KV_REST_API_URL` / `KV_REST_API_TOKEN` or `UPSTASH_REDIS_REST_*`; any of these names works).
+4. **Redeploy** so the functions pick up the new variables: *Deployments → ⋯ on the latest → Redeploy* (or just push a commit).
+5. Open the site. The **☁️ Account** tab is now active. Create your account.
 
-Testing locally with cloud accounts: Firebase sign-in doesn't work from `file://` URLs. Run a local server instead (for example `python3 -m http.server` in the project folder, then open <http://localhost:8000>). `localhost` is authorized by default.
+To confirm it worked, visit `https://pestudy-brown.vercel.app/api/auth?action=status`. It should say `"configured":true`.
+
+**How it works**
+
+| | |
+|---|---|
+| Passwords | Hashed with scrypt (random salt per user); never stored or logged in plain text. |
+| Sessions | Random 256-bit token in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie; only a SHA-256 hash is stored server-side. Valid for 30 days, refreshed on use. |
+| Forgot password | No email service is needed. Each account gets a one-time **recovery code** at sign-up (copy/download). *Forgot password?* + email + code lets the user set a new password and issues a fresh code. Users can generate a new code from the Account page. |
+| Abuse protection | Rate limits on sign-up, sign-in and recovery (per IP and per email), cross-site request blocking, 8+ character passwords. |
+| Sync | Each save carries a revision number; if another device saved first, the browser merges both copies and retries, so devices never overwrite each other. |
+| Changing password | Signs out the user's other devices. |
+| Deleting an account | Removes the user, their sessions and their progress. |
+
+**Data layout in Redis:** `user:<id>`, `email:<address>` → id, `sess:<hash>`, `progress:<id>` (hash of `rev`, `data`, `updatedAt`). You can browse it in the Upstash console (Vercel → Storage → your database → *Open in Upstash*).
+
+**Free-tier limits:** Upstash's free plan allows a generous monthly command count and plenty of storage for a study group; each save is about 1–2 commands. Vercel Hobby includes the function invocations this site needs. Vercel Hobby is for personal, non-commercial use.
+
+**Testing locally:** install the Vercel CLI (`npm i -g vercel`), run `vercel link` then `vercel env pull`, and start `vercel dev`. This serves the site and `/api` with your database settings at <http://localhost:3000>. Opening `index.html` directly still works but only offers device profiles.
+
+**Device profile PINs** only keep people sharing a computer out of each other's stats. They aren't real security; use online accounts when that matters.
 
 ## Adding content
 
