@@ -3,6 +3,8 @@
  * CLOUD ACCOUNTS (optional): to let users create accounts and sync progress across
  * devices, create a free Firebase project and paste its web config below.
  * Step-by-step instructions are in README.md ("Setting up user accounts").
+ * Remember to add pestudy-brown.vercel.app under Firebase → Authentication → Settings →
+ * Authorized domains, or sign-in will fail with "unauthorized domain".
  *
  * These values are NOT secrets — Firebase web config is meant to be public. Your data is
  * protected by the Firestore security rules (each user can only read/write their own doc).

@@ -1,5 +1,7 @@
 # PE Mechanical — Machine Design & Materials Study Prep
 
+**Live site:** <https://pestudy-brown.vercel.app>
+
 A self-contained study site for the NCEES **PE Mechanical: Machine Design and Materials (MDM)** exam.
 No build step needed — open `index.html` in a browser, or host it free on **Vercel** (Hobby plan).
 
@@ -32,12 +34,12 @@ Progress is saved per user. Device profiles and guests are stored in that browse
 3. On the configure screen:
    - **Framework Preset:** `Other`
    - **Root Directory:** `./` (leave as is)
-   - **Build Command:** leave empty / override to nothing
+   - **Build Command:** leave empty
    - **Output Directory:** leave empty (the repo root is served as-is)
-4. Click **Deploy**. In under a minute you'll get a URL like `https://pestudy.vercel.app`.
+4. Click **Deploy**. In under a minute you'll get a URL (this project's is <https://pestudy-brown.vercel.app>).
 5. **Production branch:** Vercel deploys your repository's default branch (`main`) to production. Every other branch, including this feature branch, gets a *preview* URL. Either merge this branch into `main`, or change it under *Project → Settings → Git → Production Branch*.
 
-After that, every `git push` redeploys automatically. `vercel.json` adds clean URLs and a few security headers. Optional: add your own domain under *Project → Settings → Domains*.
+After that, every `git push` redeploys automatically. On phones, use the browser's **Share → Add to Home Screen** to install it like an app. `vercel.json` adds clean URLs and a few security headers. Optional: add your own domain under *Project → Settings → Domains*.
 
 ## Setting up user accounts (cloud sync)
 
@@ -47,7 +49,7 @@ The site is static (no server code), so accounts use **Firebase** (Google's free
 2. **Turn on sign-in:** *Build → Authentication → Get started → Sign-in method*.
    - Enable **Email/Password**.
    - Optional: enable **Google** (pick a support email). If you skip this, set `googleSignIn: false` in `js/config.js`.
-3. **Allow your site's domain:** *Authentication → Settings → Authorized domains → Add domain* and enter your Vercel production domain, e.g. `pestudy.vercel.app` (plus any custom domain you add). Preview deployments use different URLs (`pestudy-git-<branch>-<you>.vercel.app`), so sign-in only works on them if you add those domains too.
+3. **Allow your site's domain:** *Authentication → Settings → Authorized domains → Add domain* and enter **`pestudy-brown.vercel.app`** (plus any custom domain you add later). `localhost` is already allowed for local testing. Preview deployments use different URLs (`pestudy-git-<branch>-<you>.vercel.app`), so sign-in only works on them if you add those domains too.
 4. **Create the database:** *Build → Firestore Database → Create database*, choose **production mode**, and pick a location near you.
 5. **Lock it down:** in Firestore, open the **Rules** tab, replace everything with the contents of [`firestore.rules`](firestore.rules) and click **Publish**. This makes sure each user can only read and write their own progress.
 6. **Get the web config:** *Project settings (gear icon) → General → Your apps →* the **`</>`** (Web) icon. Register an app (no Firebase Hosting needed), then copy the `firebaseConfig` values.
