@@ -47,7 +47,7 @@ async function getUser(id) {
   return raw ? JSON.parse(raw) : null;
 }
 async function saveUser(u) { await cmd('SET', 'user:' + u.id, JSON.stringify(u)); }
-const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, created: u.created });
+const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, created: u.created, hasPassword: !!u.pw, google: !!u.google });
 
 async function createSession(userId) {
   const token = newToken(), h = sha256(token);

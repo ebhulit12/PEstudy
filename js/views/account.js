@@ -14,6 +14,7 @@
   }
   const initials = (n) => String(n || '?').trim().split(/\s+/).map((x) => x[0]).slice(0, 2).join('').toUpperCase();
   global.userInitials = initials;
+  const GOOGLE_G = '<svg class="g-logo" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.6 5.4 2.6 13.3l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.9-6.1C.9 16.6 0 20.2 0 24s.9 7.4 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.1-13.5-9.7l-7.9 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
 
   /** After creating a brand-new account/profile, offer to bring over guest progress. */
   function offerGuestImport() {
@@ -106,6 +107,7 @@
       body.innerHTML = `
         <h2>${title}</h2>
         <p class="muted small">${sub}</p>
+        ${Auth.googleEnabled && mode !== 'recover' ? `<button class="btn big full google" id="google" type="button">${GOOGLE_G} Continue with Google</button><div class="or"><span>or use email</span></div>` : ''}
         <form id="cf" class="auth-form" novalidate>
           ${mode === 'signup' ? '<label>Name<input id="cn" type="text" autocomplete="name" maxlength="40" placeholder="Your name"></label>' : ''}
           <label>Email<input id="ce" type="email" autocomplete="email" required placeholder="you@example.com"></label>
@@ -118,6 +120,8 @@
           ${mode === 'signin' ? '<a href="javascript:void 0" data-mode="signup">Create an account</a><a href="javascript:void 0" data-mode="recover">Forgot password?</a>' : '<a href="javascript:void 0" data-mode="signin">← Back to sign in</a>'}
         </div>`;
       $$('[data-mode]', el).forEach((a) => a.addEventListener('click', () => { mode = a.dataset.mode; renderCloud(); }));
+      const g = $('#google', el);
+      if (g) g.addEventListener('click', () => { g.disabled = true; g.textContent = 'Redirecting to Google…'; Auth.googleSignIn(); });
       $('#cf', el).addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = $('#csub', el), label = btn.textContent;
@@ -185,6 +189,19 @@
     setTab(tab);
   };
 
+  /** Landing page after Google redirects back: #/oauth?ok=1[&new=1][&linked=1] or #/oauth?error=... */
+  VIEWS.oauth = function (el, params, q) {
+    if (q.ok && Auth.user && Auth.user.type === 'cloud') {
+      if (q.new) offerGuestImport();
+      if (q.linked) alert('Google is now linked to your existing account.\n\nFor security, the old password on this account was removed and other devices were signed out. You can add a new password on the Account page.');
+      return done();
+    }
+    el.innerHTML = `<div class="oauth-fail card">
+      <h2>Google sign-in didn’t complete</h2>
+      <div class="fb bad">${esc(q.error || 'Your session could not be started. Please try again.')}</div>
+      <a class="btn primary" href="#/login">Back to sign in</a></div>`;
+  };
+
   VIEWS.account = function (el) {
     const u = Auth.user;
     if (!u) { location.hash = '#/login'; return; }
@@ -211,8 +228,17 @@
         ${u.type === 'local' ? `<form id="pinf" class="auth-form inline"><label>${prof && prof.pinHash ? 'Change PIN' : 'Add a PIN'}<input id="pinv" type="password" inputmode="numeric" maxlength="12" placeholder="4+ digits"></label><button class="btn" type="submit">Save PIN</button>
           ${prof && prof.pinHash ? '<button class="btn ghost" type="button" id="rmPin">Remove PIN</button>' : ''}</form>` : ''}
       </div>`}
-      ${u.type === 'cloud' ? `
+      ${u.type === 'cloud' && !u.hasPassword ? `
       <div class="card"><h2>Security</h2>
+        <p>${GOOGLE_G} You sign in with <b>Google</b>. Optionally add a password so you can also sign in with your email.</p>
+        <form id="spf" class="auth-form inline">
+          <label>New password<input id="spn" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
+          <button class="btn" type="submit">Add password</button></form>
+        <div id="rcBox"></div>
+      </div>` : ''}
+      ${u.type === 'cloud' && u.hasPassword ? `
+      <div class="card"><h2>Security</h2>
+        ${u.google ? `<p class="small">${GOOGLE_G} Google sign-in is linked to this account.</p>` : ''}
         <form id="cpf" class="auth-form inline">
           <label>Current password<input id="cpo" type="password" autocomplete="current-password"></label>
           <label>New password<input id="cpn" type="password" autocomplete="new-password" placeholder="At least 8 characters"></label>
@@ -230,7 +256,7 @@
       </div></div>
       ${u.type !== 'guest' ? `<div class="card danger-zone"><h2>Danger zone</h2>
         <p class="muted small">${u.type === 'cloud' ? 'Permanently deletes your account and all synced progress.' : 'Deletes this profile and its progress from this device.'}</p>
-        ${u.type === 'cloud' ? '<form id="delf" class="auth-form inline"><label>Confirm with your password<input id="delp" type="password" autocomplete="current-password"></label><button class="btn danger" type="submit">Delete account</button></form>' : '<button class="btn danger" id="del">Delete profile</button>'}
+        ${u.type === 'cloud' ? `<form id="delf" class="auth-form inline"><label>${u.hasPassword ? 'Confirm with your password<input id="delp" type="password" autocomplete="current-password">' : 'Type DELETE to confirm<input id="delp" type="text" autocomplete="off">'}</label><button class="btn danger" type="submit">Delete account</button></form>` : '<button class="btn danger" id="del">Delete profile</button>'}
       </div>` : ''}`;
 
     const pill = () => {
@@ -277,7 +303,18 @@
     on('#delf', 'submit', async (e) => {
       e.preventDefault();
       if (!confirm('Permanently delete your account and all synced progress? This cannot be undone.')) return;
-      try { await Auth.deleteCloudAccount($('#delp', el).value); U.toast('Account deleted'); location.hash = '#/login'; } catch (ex) { U.toast(Auth.friendly(ex)); }
+      const v = $('#delp', el).value;
+      if (!u.hasPassword && v !== 'DELETE') return U.toast('Type DELETE to confirm');
+      try { await Auth.deleteCloudAccount(v); U.toast('Account deleted'); location.hash = '#/login'; } catch (ex) { U.toast(Auth.friendly(ex)); }
+    });
+    on('#spf', 'submit', async (e) => {
+      e.preventDefault();
+      const n = $('#spn', el).value;
+      if (n.length < 8) return U.toast('Password must be at least 8 characters');
+      try {
+        const code = await Auth.setPassword(n);
+        recoveryScreen($('#rcBox', el), code, 'Password added — you can now also sign in with your email.', () => VIEWS.account(el));
+      } catch (ex) { U.toast(Auth.friendly(ex)); }
     });
     return () => clearInterval(off);
   };

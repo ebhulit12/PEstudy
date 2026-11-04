@@ -14,7 +14,7 @@
   const PROFILES_KEY = 'pe-mdm-prep.profiles';
 
   let user = null;          // { type: 'cloud'|'local'|'guest', id, name, email? }
-  let cloudEnabled = false;
+  let cloudEnabled = false, googleEnabled = false;
   let rev = '0';            // server revision of this user's progress
   let status = 'idle';      // idle | pending | syncing | synced | error | offline
   let lastSync = null, lastPull = 0, pushTimer = null, statusMsg = '', inflight = null;
@@ -109,7 +109,7 @@
 
   // ---------------- cloud accounts ----------------
   function setStatus(s, msg) { status = s; statusMsg = msg || ''; if (s === 'synced') lastSync = Date.now(); emit('sync'); }
-  const asCloudUser = (u) => ({ type: 'cloud', id: u.id, name: u.name, email: u.email });
+  const asCloudUser = (u) => ({ type: 'cloud', id: u.id, name: u.name, email: u.email, hasPassword: u.hasPassword !== false, google: !!u.google });
 
   function sessionLost() {
     setStatus('error', 'You were signed out (session expired or password changed). Sign in again to keep syncing — your progress is safe on this device.');
@@ -215,8 +215,14 @@
   async function newRecoveryCode(password) {
     return (await api('/auth?action=new-recovery', { method: 'POST', body: { password } })).recoveryCode;
   }
+  async function setPassword(newPassword) {
+    const r = await api('/auth?action=set-password', { method: 'POST', body: { newPassword } });
+    user.hasPassword = true; emit('user');
+    return r.recoveryCode;
+  }
+  function googleSignIn() { location.href = API + '/google?start=1'; }
   async function deleteCloudAccount(password) {
-    await api('/auth?action=delete', { method: 'POST', body: { password } });
+    await api('/auth?action=delete', { method: 'POST', body: user.hasPassword ? { password } : { confirm: 'DELETE' } });
     Store.remove('cloud:' + user.id);
     user = null;
     lsSet(SESSION_KEY, null);
@@ -244,9 +250,12 @@
       try {
         server = await api('/auth?action=status', { timeout: 8000 });
         cloudEnabled = !!server.configured;
+        googleEnabled = cloudEnabled && !!server.google;
       } catch (e) { cloudEnabled = false; }
     }
-    const wantsCloud = sess && sess.type === 'cloud';
+    // Coming back from Google sign-in always means "use the online account"
+    const fromOAuth = /^#\/oauth\?ok=1/.test(location.hash);
+    const wantsCloud = fromOAuth || (sess && sess.type === 'cloud');
     if (cloudEnabled && server.user && (wantsCloud || !sess)) {
       // Show cached data immediately, then merge server data in the background
       user = asCloudUser(server.user);
@@ -283,12 +292,13 @@
     init, onChange: (fn) => listeners.push(fn),
     get user() { return user; },
     get cloudEnabled() { return cloudEnabled; },
+    get googleEnabled() { return googleEnabled; },
     get localAllowed() { return CFG.allowLocalProfiles !== false; },
     get status() { return status; },
     get statusMsg() { return statusMsg; },
     get lastSync() { return lastSync; },
     profiles, profileSummary, createLocal, loginLocal, updateLocal, deleteLocal, loginGuest,
-    signUp, signIn, recover, renameCloud, changePassword, newRecoveryCode, deleteCloudAccount, signOut,
+    signUp, signIn, recover, renameCloud, changePassword, newRecoveryCode, setPassword, googleSignIn, deleteCloudAccount, signOut,
     syncNow: () => pull(false), friendly
   };
 })(window);

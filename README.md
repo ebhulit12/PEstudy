@@ -17,7 +17,7 @@ No build step needed. Host it free on **Vercel** (Hobby plan), or open `index.ht
 | 🃏 **Flashcards** | 73 formula/concept cards with Leitner spaced repetition. |
 | ∑ **Formula Sheet** | Searchable, printable quick reference. |
 | 📈 **Progress** | Readiness score, accuracy by topic, activity heatmap, exam history, and backup export/import. |
-| 👤 **Logins** | Each person gets their own progress, plan and stats. **Online accounts** (email + password, hosted on Vercel) sync across devices; **device profiles** (optional PIN) let several people share one browser; or continue as a guest. |
+| 👤 **Logins** | Each person gets their own progress, plan and stats. **Online accounts** (email + password or Google, hosted on Vercel) sync across devices; **device profiles** (optional PIN) let several people share one browser; or continue as a guest. |
 | 🎯 **Exam Strategy** / 🔗 **Resources** | Exam format, time management, handbook tips, exam-day checklist, official NCEES links and recommended references. |
 
 Progress is saved per user. Device profiles and guests are stored in that browser's `localStorage`; online accounts are also synced to the site's database and merged across devices (nothing studied on one device is lost when you open another).
@@ -60,12 +60,35 @@ Until a database is connected, the login screen offers only *This device* profil
 
 To confirm it worked, visit `https://pestudy-brown.vercel.app/api/auth?action=status`. It should say `"configured":true`.
 
+### Optional: "Continue with Google"
+
+This uses your own Google OAuth client; the sign-in code runs in [`api/google.js`](api/google.js). It needs the database above. Takes about 5 minutes:
+
+1. Go to <https://console.cloud.google.com/>, create a project (any name), then open **APIs & Services → OAuth consent screen** (shown as *Google Auth Platform* in newer consoles) and click **Get started**:
+   - App name: `PE MDM Prep`, user support email: yours, **Audience: External**, contact email: yours.
+2. Under **Audience**, click **Publish app** so any Google account can sign in. While in *Testing*, only the test users you list can. The app only asks for the basic `openid email profile` scopes, so Google doesn't need to review it.
+3. Under **Clients** (or *Credentials → Create credentials → OAuth client ID*), create a **Web application** client:
+   - **Authorized JavaScript origins:** `https://pestudy-brown.vercel.app`
+   - **Authorized redirect URIs:** `https://pestudy-brown.vercel.app/api/google`
+   - (Optional, for `vercel dev`: also add `http://localhost:3000` and `http://localhost:3000/api/google`.)
+4. Copy the **Client ID** and **Client secret**. In Vercel → your project → **Settings → Environment Variables**, add:
+   - `GOOGLE_CLIENT_ID` = the client ID
+   - `GOOGLE_CLIENT_SECRET` = the client secret (keep this one private; it lives only in Vercel)
+5. **Redeploy**. A **Continue with Google** button appears on the sign-in screen. `…/api/auth?action=status` now shows `"google":true`.
+
+Details:
+- **One account per email.** Signing in with Google using the same email as an existing email/password account logs into that account. Email/password sign-ups don't verify ownership of the address, so when Google links to such an account, its old password is removed and other sessions are signed out. The user can add a new password on the Account page.
+- **Google-only users** can add a password later, which also gives them a recovery code.
+- Sign-in uses the authorization-code flow with PKCE, `state` and `nonce` checks. The client secret never reaches the browser.
+- If you add a custom domain later, add it to the origins/redirect URIs too. Preview deployments use different URLs, so Google sign-in only works on them if you add those URLs.
+
 **How it works**
 
 | | |
 |---|---|
 | Passwords | Hashed with scrypt (random salt per user); never stored or logged in plain text. |
 | Sessions | Random 256-bit token in an `HttpOnly`, `Secure`, `SameSite=Lax` cookie; only a SHA-256 hash is stored server-side. Valid for 30 days, refreshed on use. |
+| Google sign-in | Optional; see above. |
 | Forgot password | No email service is needed. Each account gets a one-time **recovery code** at sign-up (copy/download). *Forgot password?* + email + code lets the user set a new password and issues a fresh code. Users can generate a new code from the Account page. |
 | Abuse protection | Rate limits on sign-up, sign-in and recovery (per IP and per email), cross-site request blocking, 8+ character passwords. |
 | Sync | Each save carries a revision number; if another device saved first, the browser merges both copies and retries, so devices never overwrite each other. |

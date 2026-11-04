@@ -4,7 +4,7 @@
   'use strict';
   const { $, $$, esc } = U;
   let cleanup = null;
-  const PUBLIC = ['login'];
+  const PUBLIC = ['login', 'oauth'];
   // Views that are safe to re-render when newer progress arrives from another device
   const LIVE = ['dashboard', 'progress', 'planner', 'topics', 'account'];
 
@@ -23,7 +23,7 @@
       if (location.hash !== '#/login') { location.replace('#/login'); return; }
       view = 'login';
     }
-    document.body.classList.toggle('gate', view === 'login');
+    document.body.classList.toggle('gate', PUBLIC.includes(view));
     const fn = VIEWS[view] || VIEWS.dashboard;
     if (typeof cleanup === 'function') { try { cleanup(); } catch (e) { /* ignore */ } }
     if (global.speechSynthesis) global.speechSynthesis.cancel();
