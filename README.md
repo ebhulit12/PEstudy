@@ -1,7 +1,7 @@
 # PE Mechanical — Machine Design & Materials Study Prep
 
 A self-contained study site for the NCEES **PE Mechanical: Machine Design and Materials (MDM)** exam.
-No build step or server needed — open `index.html` in a browser, or host it free on GitHub Pages.
+No build step needed — open `index.html` in a browser, or host it free on **Vercel** (Hobby plan).
 
 ## Features
 
@@ -23,17 +23,31 @@ Progress is saved per user. Device profiles and guests are stored in that browse
 ## Running it
 
 - **Locally:** open `index.html` in Chrome, Edge, Firefox or Safari. (Math rendering uses KaTeX from a CDN, so you need an internet connection for equations to display nicely.)
-- **GitHub Pages:** in the repo go to *Settings → Pages*, set the source to this branch and the root folder. The site will be served at `https://<user>.github.io/<repo>/`.
+- **Vercel (recommended):** see *Deploying to Vercel* below.
+
+## Deploying to Vercel
+
+1. Sign in at <https://vercel.com> with your GitHub account (Hobby plan is fine).
+2. Click **Add New… → Project** and **Import** the `PEstudy` repository. If it isn't listed, click *Adjust GitHub App Permissions* and give Vercel access to the repo.
+3. On the configure screen:
+   - **Framework Preset:** `Other`
+   - **Root Directory:** `./` (leave as is)
+   - **Build Command:** leave empty / override to nothing
+   - **Output Directory:** leave empty (the repo root is served as-is)
+4. Click **Deploy**. In under a minute you'll get a URL like `https://pestudy.vercel.app`.
+5. **Production branch:** Vercel deploys your repository's default branch (`main`) to production. Every other branch, including this feature branch, gets a *preview* URL. Either merge this branch into `main`, or change it under *Project → Settings → Git → Production Branch*.
+
+After that, every `git push` redeploys automatically. `vercel.json` adds clean URLs and a few security headers. Optional: add your own domain under *Project → Settings → Domains*.
 
 ## Setting up user accounts (cloud sync)
 
-GitHub Pages only serves static files, so accounts use **Firebase** (Google's free backend) for sign-in and storage. Until you do this, the login screen offers only *This device* profiles and guest mode, which work fine with no setup.
+The site is static (no server code), so accounts use **Firebase** (Google's free backend) for sign-in and storage. Until you do this, the login screen offers only *This device* profiles and guest mode, which work fine with no setup.
 
 1. Go to <https://console.firebase.google.com>, click **Create a project**, and give it a name (Google Analytics is optional; you can turn it off).
 2. **Turn on sign-in:** *Build → Authentication → Get started → Sign-in method*.
    - Enable **Email/Password**.
    - Optional: enable **Google** (pick a support email). If you skip this, set `googleSignIn: false` in `js/config.js`.
-3. **Allow your site's domain:** *Authentication → Settings → Authorized domains → Add domain* and enter `ebhulit12.github.io`.
+3. **Allow your site's domain:** *Authentication → Settings → Authorized domains → Add domain* and enter your Vercel production domain, e.g. `pestudy.vercel.app` (plus any custom domain you add). Preview deployments use different URLs (`pestudy-git-<branch>-<you>.vercel.app`), so sign-in only works on them if you add those domains too.
 4. **Create the database:** *Build → Firestore Database → Create database*, choose **production mode**, and pick a location near you.
 5. **Lock it down:** in Firestore, open the **Rules** tab, replace everything with the contents of [`firestore.rules`](firestore.rules) and click **Publish**. This makes sure each user can only read and write their own progress.
 6. **Get the web config:** *Project settings (gear icon) → General → Your apps →* the **`</>`** (Web) icon. Register an app (no Firebase Hosting needed), then copy the `firebaseConfig` values.
