@@ -37,9 +37,22 @@
       el.innerHTML = `<div class="card"><h2>Something went wrong</h2><pre>${esc(err.stack || err.message)}</pre></div>`;
     }
     $$('.sidebar a').forEach((a) => a.classList.toggle('active', a.dataset.route === view));
+    trackView(view, params);
     document.body.classList.remove('nav-open');
     window.scrollTo(0, 0);
     el.focus({ preventScroll: true });
+  }
+
+  /* Vercel Web Analytics: report one page view per screen. Routes are grouped (e.g. /topics/[id])
+     and contain only page names and content ids — never user details or query strings. */
+  let lastTracked = null;
+  function trackView(view, params) {
+    if (location.protocol === 'file:' || typeof global.va !== 'function') return;
+    const path = '/' + [view].concat(params.map(encodeURIComponent)).join('/');
+    if (path === lastTracked) return; // ignore re-renders of the same screen
+    lastTracked = path;
+    const route = '/' + view + (params.length ? '/[id]' : '');
+    try { global.va('pageview', { route, path }); } catch (e) { /* analytics must never break the app */ }
   }
 
   function updateCountdown() {

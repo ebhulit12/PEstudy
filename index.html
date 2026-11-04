@@ -23,6 +23,14 @@
   <link rel="stylesheet" href="css/style.css">
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <!-- Vercel Web Analytics (plain-HTML equivalent of the <Analytics /> component). Page views are
+       sent from js/app.js on every in-app route change, since this is a hash-routed single-page app. -->
+  <script>
+    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    // Send clean paths only (/practice, not /practice#/practice?topic=jf)
+    window.va('beforeSend', function (e) { return Object.assign({}, e, { url: String(e.url).split('#')[0].split('?')[0] }); });
+  </script>
+  <script defer src="/_vercel/insights/script.js" data-disable-auto-track="1"></script>
 </head>
 <body>
   <header class="topbar">
