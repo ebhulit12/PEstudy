@@ -66,6 +66,7 @@
       const c = deck[i], s = cardState(c.id);
       s.box = ok ? Math.min(5, s.box + 1) : 1;
       s.due = Date.now() + INTERVAL[s.box] * U.DAY - 3600e3; // an hour of slack
+      s.t = Date.now();
       Store.s.cards[c.id] = s;
       Store.logActivity(0.5);
       Store.save();

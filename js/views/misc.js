@@ -49,7 +49,7 @@
       <div class="card"><h2>Practice exam history</h2>
         ${exams.length ? `<div class="spark exams">${exams.slice(-20).map((x) => { const p = Math.round((100 * x.correct) / x.n); return `<span title="${new Date(x.ts).toLocaleDateString()}: ${p}% (${x.n} Q)" style="height:${p}%"><i>${p}</i></span>`; }).join('')}<div class="target-line" style="bottom:70%"></div></div>` : '<p class="muted">No practice exams yet. <a href="#/exam">Take one →</a></p>'}
       </div>
-      <div class="card"><h2>Your data</h2><p class="muted small">Everything is stored locally in this browser. Export a backup to move devices or keep it safe.</p>
+      <div class="card"><h2>Your data</h2><p class="muted small">${Auth.user && Auth.user.type === 'cloud' ? 'Your progress is synced to your account and cached in this browser.' : 'This profile’s progress is stored only in this browser.'} Export a backup to keep a copy; importing a backup merges it with your current progress.</p>
         <div class="row gap wrap"><button class="btn" id="exp">⬇ Export backup</button><label class="btn">⬆ Import backup<input type="file" id="imp" accept="application/json" hidden></label><button class="btn danger" id="rst">Reset all progress</button></div></div>`;
 
     $('#exp', el).addEventListener('click', () => U.download(`pe-mdm-backup-${U.isoDate(new Date())}.json`, Store.exportJSON()));
@@ -57,7 +57,7 @@
       const f = e.target.files[0]; if (!f) return;
       f.text().then((t) => { try { Store.importJSON(t); U.toast('Backup imported'); VIEWS.progress(el); updateCountdown(); } catch (err) { U.toast('Import failed: ' + err.message); } });
     });
-    $('#rst', el).addEventListener('click', () => { if (confirm('Erase ALL progress, plan and settings? This cannot be undone.')) { Store.reset(); U.toast('Progress reset'); VIEWS.progress(el); updateCountdown(); } });
+    $('#rst', el).addEventListener('click', () => { if (confirm(`Erase ALL progress and the study plan for ${Auth.user ? Auth.user.name : 'this profile'}${Auth.user && Auth.user.type === 'cloud' ? ' on every device' : ''}? This cannot be undone.`)) { Store.reset(); U.toast('Progress reset'); VIEWS.progress(el); updateCountdown(); } });
   };
 
   VIEWS.strategy = function (el) {

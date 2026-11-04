@@ -15,14 +15,48 @@ No build step or server needed — open `index.html` in a browser, or host it fr
 | 🃏 **Flashcards** | 73 formula/concept cards with Leitner spaced repetition. |
 | ∑ **Formula Sheet** | Searchable, printable quick reference. |
 | 📈 **Progress** | Readiness score, accuracy by topic, activity heatmap, exam history, and backup export/import. |
+| 👤 **Logins** | Each person gets their own progress, plan and stats. **Cloud accounts** (email/password or Google, via free Firebase) sync across devices; **device profiles** (optional PIN) let several people share one browser; or continue as a guest. |
 | 🎯 **Exam Strategy** / 🔗 **Resources** | Exam format, time management, handbook tips, exam-day checklist, official NCEES links and recommended references. |
 
-All progress is saved in your browser's `localStorage`. Use **Progress → Export backup** to move it between devices.
+Progress is saved per user. Device profiles and guests are stored in that browser's `localStorage`; cloud accounts are also synced to Firebase and merged across devices (nothing studied on one device is lost when you open another).
 
 ## Running it
 
 - **Locally:** open `index.html` in Chrome, Edge, Firefox or Safari. (Math rendering uses KaTeX from a CDN, so you need an internet connection for equations to display nicely.)
 - **GitHub Pages:** in the repo go to *Settings → Pages*, set the source to this branch and the root folder. The site will be served at `https://<user>.github.io/<repo>/`.
+
+## Setting up user accounts (cloud sync)
+
+GitHub Pages only serves static files, so accounts use **Firebase** (Google's free backend) for sign-in and storage. Until you do this, the login screen offers only *This device* profiles and guest mode, which work fine with no setup.
+
+1. Go to <https://console.firebase.google.com>, click **Create a project**, and give it a name (Google Analytics is optional; you can turn it off).
+2. **Turn on sign-in:** *Build → Authentication → Get started → Sign-in method*.
+   - Enable **Email/Password**.
+   - Optional: enable **Google** (pick a support email). If you skip this, set `googleSignIn: false` in `js/config.js`.
+3. **Allow your site's domain:** *Authentication → Settings → Authorized domains → Add domain* and enter `ebhulit12.github.io`.
+4. **Create the database:** *Build → Firestore Database → Create database*, choose **production mode**, and pick a location near you.
+5. **Lock it down:** in Firestore, open the **Rules** tab, replace everything with the contents of [`firestore.rules`](firestore.rules) and click **Publish**. This makes sure each user can only read and write their own progress.
+6. **Get the web config:** *Project settings (gear icon) → General → Your apps →* the **`</>`** (Web) icon. Register an app (no Firebase Hosting needed), then copy the `firebaseConfig` values.
+7. Paste them into [`js/config.js`](js/config.js) in place of `firebase: null`:
+   ```js
+   firebase: {
+     apiKey: 'AIza…',
+     authDomain: 'your-project.firebaseapp.com',
+     projectId: 'your-project',
+     storageBucket: 'your-project.appspot.com',
+     messagingSenderId: '…',
+     appId: '…'
+   },
+   ```
+8. Commit and push. The login screen's **☁️ Account** tab now lets people create accounts.
+
+**Is it safe to put that config in a public repo?** Yes. Firebase web config values are identifiers, not passwords; access is controlled by the security rules from step 5. Firebase's free *Spark* plan (50k reads / 20k writes per day) is far more than a study group will use.
+
+**Managing users:** you can see and disable accounts under *Authentication → Users*, and each user's saved progress lives at `users/{uid}` in Firestore.
+
+**Device profile PINs** only keep people sharing a computer out of each other's stats. They are not real security, since anyone with access to the browser can read its storage. Use cloud accounts when that matters.
+
+Testing locally with cloud accounts: Firebase sign-in doesn't work from `file://` URLs. Run a local server instead (for example `python3 -m http.server` in the project folder, then open <http://localhost:8000>). `localhost` is authorized by default.
 
 ## Adding content
 
