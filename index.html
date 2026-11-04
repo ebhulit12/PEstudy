@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PE Mechanical MDM Prep</title>
+  <meta name="description" content="Study prep site for the NCEES PE Mechanical: Machine Design & Materials exam.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <button class="menu-btn" id="menuBtn" aria-label="Toggle menu">☰</button>
+    <a class="brand" href="#/dashboard"><span class="brand-mark">PE</span> Machine Design &amp; Materials</a>
+    <div class="topbar-right">
+      <span class="countdown" id="countdown"></span>
+      <button class="icon-btn" id="themeBtn" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
+    </div>
+  </header>
+  <nav class="sidebar" id="sidebar">
+    <a href="#/dashboard" data-route="dashboard">🏠 Dashboard</a>
+    <a href="#/planner" data-route="planner">🗓️ Study Planner</a>
+    <div class="nav-label">Learn</div>
+    <a href="#/topics" data-route="topics">📘 Study Notes</a>
+    <a href="#/formulas" data-route="formulas">∑ Formula Sheet</a>
+    <a href="#/videos" data-route="videos">▶️ Video Problems</a>
+    <div class="nav-label">Practice</div>
+    <a href="#/practice" data-route="practice">✏️ Practice Problems</a>
+    <a href="#/exam" data-route="exam">⏱️ Practice Exam</a>
+    <a href="#/flashcards" data-route="flashcards">🃏 Flashcards</a>
+    <div class="nav-label">Prepare</div>
+    <a href="#/progress" data-route="progress">📈 Progress</a>
+    <a href="#/strategy" data-route="strategy">🎯 Exam Strategy</a>
+    <a href="#/resources" data-route="resources">🔗 Resources</a>
+  </nav>
+  <main id="app" class="main" tabindex="-1"></main>
+
+  <script src="js/util.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/data/spec.js"></script>
+  <script src="js/figures.js"></script>
+  <script src="js/data/notes.js"></script>
+  <script src="js/data/problems.js"></script>
+  <script src="js/data/concepts.js"></script>
+  <script src="js/data/flashcards.js"></script>
+  <script src="js/data/resources.js"></script>
+  <script src="js/planner.js"></script>
+  <script src="js/views/dashboard.js"></script>
+  <script src="js/views/planner-view.js"></script>
+  <script src="js/views/learn.js"></script>
+  <script src="js/views/practice.js"></script>
+  <script src="js/views/video.js"></script>
+  <script src="js/views/exam.js"></script>
+  <script src="js/views/flashcards-view.js"></script>
+  <script src="js/views/misc.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
