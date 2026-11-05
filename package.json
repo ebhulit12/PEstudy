@@ -1,0 +1,11 @@
+{
+  "name": "pestudy",
+  "private": true,
+  "description": "PE Mechanical MDM study prep site (static site + Vercel Functions)",
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@polar-sh/sdk": "^1.0.2"
+  }
+}
