@@ -4,8 +4,11 @@
   const { $, $$, esc, renderMath } = U;
   const VIEWS = (global.VIEWS = global.VIEWS || {});
 
+  /** Section titles not included in the free sample (sent by /api/content for teasers). */
+  const lockedTitles = (id) => ((global.CONTENT_META && CONTENT_META.lockedSections) || {})[id] || [];
+
   function readPct(id) {
-    const n = (NOTES[id] || []).length;
+    const n = (NOTES[id] || []).length + lockedTitles(id).length;
     if (!n) return 0;
     let r = 0;
     for (let i = 0; i < n; i++) if (Store.s.notesRead[`${id}:${i}`]) r++;
@@ -18,6 +21,7 @@
     const stats = Store.topicStats();
     el.innerHTML = `
       <div class="page-head"><h1>📘 Study Notes</h1><p class="muted">Organized by the NCEES Machine Design &amp; Materials specification. Approximate number of exam questions shown for each area.</p></div>
+      ${Paywall.isLocked() ? Paywall.banner('Free sample: the first section of each topic. Subscribe for all notes.') : ''}
       ${['Principles', 'Applications'].map((area) => `
         <h2 class="area-h">${area}</h2>
         <div class="tgrid">${SPEC.topics.filter((t) => t.area === area).map((t) => {
@@ -28,6 +32,7 @@
             <div class="tcard-foot"><span>📖 ${readPct(t.id)}% read</span><span>${acc === null ? 'no attempts yet' : `🎯 ${acc}% (${s.n})`}</span></div>
             <div class="mini-bar"><div style="width:${readPct(t.id)}%"></div></div></a>`;
         }).join('')}</div>`).join('')}`;
+    Paywall.bind(el);
   };
 
   function detail(el, id) {
@@ -52,11 +57,14 @@
         <div class="notes">${secs.map((s, i) => `
           <section class="card note" id="sec${i}"><h2>${esc(s.title)}</h2>${s.html}
           <label class="chk read-chk"><input type="checkbox" data-read="${i}" ${Store.s.notesRead[`${id}:${i}`] ? 'checked' : ''}> I've studied this section</label></section>`).join('')}
+          ${lockedTitles(id).length ? `<section class="card locked-secs"><h3>🔒 ${lockedTitles(id).length} more section${lockedTitles(id).length > 1 ? 's' : ''} with full access</h3>
+            <ul>${lockedTitles(id).map((x) => `<li>${esc(x)}</li>`).join('')}</ul>${Paywall.banner('Unlock the complete notes for this topic.')}</section>` : ''}
           <section class="card"><h3>📺 External video lessons</h3><ul>${(RESOURCES.videoSearches[id] || []).map(([n, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(n)} ↗</a></li>`).join('')}</ul></section>
           <div class="row gap">${prev ? `<a class="btn" href="#/topics/${prev.id}">← ${prev.name}</a>` : ''}<span class="spacer"></span>${next ? `<a class="btn" href="#/topics/${next.id}">${next.name} →</a>` : ''}</div>
         </div>
       </div>`;
     renderMath(el);
+    Paywall.bind(el);
     $$('[data-sec]', el).forEach((a) => a.addEventListener('click', () => $('#sec' + a.dataset.sec, el).scrollIntoView({ behavior: 'smooth', block: 'start' })));
     $$('[data-read]', el).forEach((c) => c.addEventListener('change', () => {
       const k = `${id}:${c.dataset.read}`;
@@ -67,6 +75,7 @@
   }
 
   VIEWS.formulas = function (el) {
+    if (Paywall.gate(el, 'The formula sheet is part of full access')) return;
     el.innerHTML = `
       <div class="page-head"><h1>∑ Formula Sheet</h1>
       <p class="muted">Quick-reference equations by topic. In the exam you'll only have the NCEES handbook — use this sheet to learn <i>what</i> to look for, then practice finding each in the handbook PDF.</p></div>

@@ -87,8 +87,46 @@
     document.documentElement.dataset.theme = t;
   }
 
-  function refresh() { applyTheme(); updateCountdown(); updateUserChip(); }
-  global.App = { refresh, route };
+  function refresh() {
+    applyTheme(); updateCountdown(); updateUserChip();
+    const up = $('#navUpgrade');
+    if (up) up.classList.toggle('hidden', !Auth.user || global.CONTENT_TIER === 'full' || global.CONTENT_TIER === 'unavailable' || !Auth.cloudEnabled);
+  }
+
+  /* Study content is served by /api/content: the full set for subscribers, a free sample otherwise.
+     It defines window.NOTES / PROBLEMS / CONCEPTS / FLASHCARDS / CONTENT_TIER / CONTENT_META. */
+  const CONTENT_KEYS = ['NOTES', 'PROBLEMS', 'CONCEPTS', 'FLASHCARDS', 'CONTENT_TIER', 'CONTENT_META'];
+  let contentLoading = null;
+  const wantedTier = () => (Auth.isSubscriber ? 'full' : 'sample');
+  function loadContent() {
+    if (contentLoading) return contentLoading;
+    contentLoading = new Promise((resolve) => {
+      CONTENT_KEYS.forEach((k) => { try { delete global[k]; } catch (e) { global[k] = undefined; } });
+      const s = document.createElement('script');
+      s.src = ((global.APP_CONFIG && APP_CONFIG.apiBase) || '') + '/api/content?t=' + Date.now();
+      const finish = () => {
+        s.remove();
+        if (!Array.isArray(global.PROBLEMS)) { // offline, opened from a file, or server error
+          Object.assign(global, { NOTES: {}, PROBLEMS: [], CONCEPTS: [], FLASHCARDS: [], CONTENT_TIER: 'unavailable', CONTENT_META: { totals: {} } });
+        }
+        if (global.Bank) { Bank._all = null; Bank._by = null; }
+        resolve(global.CONTENT_TIER);
+      };
+      s.onload = finish; s.onerror = finish;
+      document.head.appendChild(s);
+    }).finally(() => { contentLoading = null; });
+    return contentLoading;
+  }
+  /** Reload content if the user's tier changed (sign in/out, subscribed, subscription ended). */
+  async function syncContent() {
+    if (global.CONTENT_TIER === 'unavailable' || global.CONTENT_TIER === wantedTier()) return;
+    await loadContent();
+    refresh();
+    // On the login / OAuth screens, don't re-render: they may be showing a one-time recovery code,
+    // and they navigate onward themselves (which renders with the new content).
+    if (!PUBLIC.includes(parseHash().view)) route();
+  }
+  global.App = { refresh, route, loadContent, syncContent };
 
   $('#themeBtn').addEventListener('click', () => {
     const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
@@ -99,7 +137,8 @@
   $('#menuBtn').addEventListener('click', () => document.body.classList.toggle('nav-open'));
 
   Auth.onChange((evt) => {
-    if (evt === 'user') refresh();
+    if (evt === 'user') { refresh(); syncContent(); }
+    if (evt === 'access') { refresh(); syncContent(); }
     if (evt === 'sync') updateSyncDot();
     if (evt === 'remote-update') {
       refresh();
@@ -108,8 +147,15 @@
     }
   });
 
+  // Coming back to the tab after starting a checkout: ask the server (and Polar) for fresh access.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !Auth.user || Auth.user.type !== 'cloud' || Auth.isSubscriber) return;
+    const started = +sessionStorage.getItem('pe-checkout-started') || 0;
+    if (Date.now() - started < 2 * 60 * 60 * 1000) Auth.refreshAccess(true);
+  });
+
   applyTheme();
-  Auth.init().finally(() => {
+  Auth.init().catch(() => {}).then(loadContent).finally(() => {
     refresh();
     window.addEventListener('hashchange', route);
     route();

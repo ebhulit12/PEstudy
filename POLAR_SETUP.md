@@ -10,9 +10,14 @@ Polar ([dashboard](https://polar.sh/dashboard/pe-prepsite)) handles checkout and
 |---|---|---|
 | `package.json`, `package-lock.json` | new | npm manifest with `@polar-sh/sdk` (^1.0.2); `engines.node >=22` (required by SDK 1.x) |
 | `api/_lib/polar.mjs` | new | Single shared SDK client; environment read from `POLAR_SERVER` |
-| `api/checkout.mjs` | new | `GET /checkout?products=<id>` creates a checkout session and 302-redirects to Polar's hosted checkout (no success URL; Polar shows its own confirmation) |
-| `api/webhook/polar.mjs` | new | `POST /api/webhook/polar` verifies the signature on the raw body, then handles `order.paid` and `customer.state_changed` (**TODO stubs; no access is granted yet**) |
-| `vercel.json` | changed | Rewrite `/checkout` → `/api/checkout` |
+| `api/checkout.mjs` | new | `GET /checkout?products=<id>` requires a signed-in online account, creates a checkout with `external_customer_id` = app user id, and 302-redirects to Polar's hosted checkout (no success URL; Polar shows its own confirmation). Signed-out → `/#/subscribe`; already subscribed → `/#/account`; non-access products → 400 |
+| `api/webhook/polar.mjs` | new | `POST /api/webhook/polar` verifies the signature on the raw body, then updates the user's access from `customer.state_changed` (source of truth) and `order.paid` (immediate grant). Deduplicates on `webhook-id`, ignores out-of-order states |
+| `api/_lib/access.js` | new | Access records in Redis (`access:<userId>`), derived from Polar customer state; direct Polar lookup (`customers.getStateExternal`) when missing or stale; comp emails |
+| `api/content.js`, `api/_lib/content.js` | new | `GET /api/content` serves the study content: everything for subscribers, a free sample otherwise |
+| `api/_content/*` | moved | Full notes, problems, concepts and flashcards (previously public in `js/data/`); only served through `/api/content` |
+| `api/auth.js` | changed | `status` returns `access` (+ `?refresh=1` to re-check Polar, rate-limited); account deletion also deletes the access record |
+| `js/views/subscribe.js` + views | new/changed | Paywall card/banners, `#/subscribe` page, subscription status on the Account page |
+| `vercel.json` | changed | Rewrite `/checkout` → `/api/checkout`; bundle `api/_content/**` with the content function |
 | `.gitignore` | new | Ignores `.env`, `.env.*`, `node_modules/`, `.vercel/` |
 | `.env` (not committed) | new | Local placeholders for `vercel dev` |
 
@@ -23,6 +28,15 @@ Set in **Vercel → Settings → Environment Variables** (Production), plus `.en
 - `POLAR_ACCESS_TOKEN`: organization access token (production; scopes: products, checkouts, webhooks, read and write)
 - `POLAR_WEBHOOK_SECRET`: signing secret of the webhook endpoint below
 - `POLAR_SERVER`: `production` (or `sandbox`)
+- `POLAR_PRODUCT_IDS` *(optional)*: comma-separated product ids that grant access. Defaults to the Monthly Subscription below; the first one is what the Subscribe button checks out.
+- `FREE_ACCESS_EMAILS` *(optional)*: comma-separated account emails that get full access without paying (e.g. your own account)
+
+## How paid access works
+
+1. **Linking:** `/checkout` takes the user from the server-side session cookie and sets Polar's `external_customer_id` to the app user id (plus email and name). It's never read from the URL.
+2. **Granting:** the webhook resolves `external_id` back to the app user. A user has access when their Polar customer state has an **active or trialing** subscription to an access product. `order.paid` grants immediately; `customer.state_changed` is the source of truth (cancel at period end keeps access until the period ends; revoked removes it).
+3. **Safety net:** if a webhook is missed, the status check re-asks Polar when the record is stale (15 min for non-subscribers, 6 h for subscribers), and the paywall's **"Already subscribed? Refresh"** button forces a check.
+4. **Protection:** paid content is only sent by `/api/content` to users with access. Guests and device profiles get the free sample (first notes section per topic, 2 calculation problems + 2 concept questions per topic, sample videos); practice exams, flashcards and the formula sheet are full-access only.
 
 ## Polar resources
 
@@ -52,12 +66,14 @@ Polar hosts the customer portal (manage the subscription, invoices, payment meth
 - `GET /checkout` without products → `400`; with the product id → `302` to `polar.sh/checkout/…` (shows the Monthly Subscription; confirms the access token and product)
 - `POST /api/webhook/polar` unsigned or with a bad signature → `403` (confirms `POLAR_WEBHOOK_SECRET` is loaded)
 - Locally: signed events reach the handlers (`202`), tampered bodies are rejected (`403`), and a missing secret or token returns `500` without crashing
+- Locally, end to end against a simulated Polar API with real signed webhooks (33 checks): sample vs. full content, paywalls, checkout carries the app user id, webhook grants access (trialing), duplicate and out-of-order deliveries ignored, cancel-at-period-end keeps access, revoke removes it, missed-webhook recovery through a direct Polar lookup, comp emails, forged webhooks rejected, account deletion removes the access record
 
 ## Verify-before-merging checklist
 
 - [ ] Complete one checkout with the 100% discount code and confirm the webhook delivery shows `202` in Polar
 - [ ] Confirm the webhook endpoint's API version in the dashboard matches the SDK import (`2026-10`)
 - [ ] `POLAR_*` variables are set for **Production** in Vercel (and Preview only if you intend previews to take payments)
-- [ ] Implement the `order.paid` / `customer.state_changed` handlers. Until then, **paying does not grant access**. `validateEvent` checks the signature and event type, not the payload's shape, so validate the fields you use. Deduplicate on the `webhook-id` header and respond quickly (< 2 s).
-- [ ] Decide whether `/checkout` should require sign-in, so purchases can be tied to an app account via `external_customer_id`
+- [ ] With a real account: subscribe using the 100% discount code, then confirm the app unlocks (Account page shows the subscription) and the access record appears in Redis as `access:<userId>`
+- [ ] Add your own email to `FREE_ACCESS_EMAILS` in Vercel if you want full access without a subscription
+- [ ] Deleting an app account does **not** cancel the Polar subscription. Users are warned on the Account page; cancel in Polar if someone asks you to delete their account
 - [ ] Before going live: complete Polar's organization review so real payments are accepted, then remove any test discount codes

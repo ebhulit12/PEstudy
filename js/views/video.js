@@ -14,6 +14,7 @@
     el.innerHTML = `
       <div class="page-head"><h1>▶️ Video Problems</h1>
       <p class="muted">Narrated, step-by-step walkthroughs of exam-style problems. Each one starts with the problem and a <b>“pause &amp; try”</b> countdown — attempt it on paper first, then watch the solution unfold. Turn on 🔊 narration for audio. Every replay can use new numbers.</p></div>
+      ${Paywall.isLocked() ? Paywall.banner(`Free sample: ${vids.length} of ${(CONTENT_META.totals || {}).videos || vids.length} walkthroughs.`) : ''}
       <div class="filters card"><label>Topic <select id="vt"><option value="all">All topics</option>${SPEC.topics.map((t) => `<option value="${t.id}">${t.name}</option>`).join('')}</select></label>
       <span class="spacer"></span><span class="muted small">${vids.length} walkthroughs</span></div>
       ${groups.map((g) => `
@@ -26,12 +27,16 @@
         <details class="ext"><summary>External video lessons on YouTube (${g.t.short})</summary><ul>${(RESOURCES.videoSearches[g.t.id] || []).map(([n, u]) => `<li><a href="${u}" target="_blank" rel="noopener">${esc(n)} ↗</a></li>`).join('')}</ul></details>
         </section>`).join('')}`;
     $('#vt', el).value = topicSel;
+    Paywall.bind(el);
     $('#vt', el).addEventListener('change', (e) => { location.hash = '#/videos' + (e.target.value === 'all' ? '' : '?topic=' + e.target.value); });
   };
 
   function player(el, id, q) {
     const item = PROBLEMS.find((p) => p.id === id);
-    if (!item) { el.innerHTML = '<p>Walkthrough not found.</p>'; return; }
+    if (!item) {
+      if (!Paywall.gate(el, 'This walkthrough is part of full access')) el.innerHTML = '<p>Walkthrough not found.</p>';
+      return;
+    }
     let seed = q.seed ? +q.seed : 12345 + id.length * 97;
     let inst, scenes, idx = 0, playing = false, timer = null, rate = 1, narrate = false, tryCount = 0;
     const synth = global.speechSynthesis;

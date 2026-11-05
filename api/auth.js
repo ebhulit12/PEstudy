@@ -13,6 +13,7 @@
 const { config, cmd, pipeline } = require('./_lib/redis');
 const { send, readBody, sessionCookie, sameOrigin, clientIp, query } = require('./_lib/http');
 const S = require('./_lib/session');
+const A = require('./_lib/access');
 const crypto = require('crypto');
 
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
@@ -23,7 +24,7 @@ const checkPassword = (p) => (typeof p === 'string' && p.length >= 8 && p.length
 
 async function deleteUser(req, res, user) {
   await S.destroyAllSessions(user.id);
-  const keys = [['DEL', 'user:' + user.id], ['DEL', 'email:' + user.email], ['DEL', 'progress:' + user.id], ['DEL', 'usess:' + user.id]];
+  const keys = [['DEL', 'user:' + user.id], ['DEL', 'email:' + user.email], ['DEL', 'progress:' + user.id], ['DEL', 'usess:' + user.id], ['DEL', 'access:' + user.id]];
   if (user.google) keys.push(['DEL', 'google:' + user.google]);
   await pipeline(keys);
   return send(res, 200, { ok: true }, { 'Set-Cookie': sessionCookie(req, null) });
@@ -37,7 +38,13 @@ module.exports = async function handler(req, res) {
     }
     if (action === 'status') {
       const s = await S.currentSession(req);
-      return send(res, 200, { configured: true, google: googleConfigured(), user: s ? S.publicUser(s.user) : null });
+      let access = null;
+      if (s) {
+        // ?refresh=1 (e.g. "I just subscribed") re-checks Polar right away; rate-limited per user
+        const force = query(req).refresh === '1' && (await S.rateLimit('access-refresh', s.user.id, 6, 60));
+        access = await A.getAccess(s.user, { refresh: force ? 'force' : 'auto' });
+      }
+      return send(res, 200, { configured: true, google: googleConfigured(), user: s ? S.publicUser(s.user) : null, access, checkoutProductId: A.productIds()[0] || null });
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'Method not allowed' });
     if (!sameOrigin(req)) return send(res, 403, { error: 'Cross-site request blocked' });

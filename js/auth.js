@@ -15,6 +15,8 @@
 
   let user = null;          // { type: 'cloud'|'local'|'guest', id, name, email? }
   let cloudEnabled = false, googleEnabled = false;
+  let access = null;            // { active, status, currentPeriodEnd, cancelAtPeriodEnd, trialEnd } for online accounts
+  let checkoutProductId = null; // product the "Subscribe" button checks out
   let rev = '0';            // server revision of this user's progress
   let status = 'idle';      // idle | pending | syncing | synced | error | offline
   let lastSync = null, lastPull = 0, pushTimer = null, statusMsg = '', inflight = null;
@@ -187,8 +189,21 @@
     lsSet(SESSION_KEY, { type: 'cloud', id: u.id });
     rev = '0';
     const isNew = await pull(true);
+    await refreshAccess(false);
     emit('user');
     return isNew;
+  }
+
+  /** Re-read subscription access from the server (force: ask Polar right now, e.g. after paying). */
+  async function refreshAccess(force) {
+    try {
+      const r = await api('/auth?action=status' + (force ? '&refresh=1' : ''));
+      checkoutProductId = r.checkoutProductId || checkoutProductId;
+      const before = JSON.stringify(access);
+      access = r.user && user && user.type === 'cloud' ? r.access : null;
+      if (JSON.stringify(access) !== before) emit('access');
+    } catch (e) { /* keep the last known value */ }
+    return access;
   }
 
   async function signUp(email, password, name) {
@@ -224,7 +239,7 @@
   async function deleteCloudAccount(password) {
     await api('/auth?action=delete', { method: 'POST', body: user.hasPassword ? { password } : { confirm: 'DELETE' } });
     Store.remove('cloud:' + user.id);
-    user = null;
+    user = null; access = null;
     lsSet(SESSION_KEY, null);
     emit('user');
   }
@@ -234,7 +249,7 @@
       if (pushTimer) await push();
       try { await api('/auth?action=logout', { method: 'POST' }); } catch (e) { /* ignore */ }
     }
-    user = null;
+    user = null; access = null;
     lsSet(SESSION_KEY, null);
     emit('user');
   }
@@ -251,6 +266,7 @@
         server = await api('/auth?action=status', { timeout: 8000 });
         cloudEnabled = !!server.configured;
         googleEnabled = cloudEnabled && !!server.google;
+        checkoutProductId = server.checkoutProductId || null;
       } catch (e) { cloudEnabled = false; }
     }
     // Coming back from Google sign-in always means "use the online account"
@@ -259,6 +275,7 @@
     if (cloudEnabled && server.user && (wantsCloud || !sess)) {
       // Show cached data immediately, then merge server data in the background
       user = asCloudUser(server.user);
+      access = server.access || null;
       Store.open('cloud:' + server.user.id);
       lsSet(SESSION_KEY, { type: 'cloud', id: server.user.id });
       pull(false);
@@ -297,6 +314,10 @@
     get status() { return status; },
     get statusMsg() { return statusMsg; },
     get lastSync() { return lastSync; },
+    get access() { return access; },
+    get isSubscriber() { return !!(access && access.active); },
+    get checkoutProductId() { return checkoutProductId; },
+    refreshAccess,
     profiles, profileSummary, createLocal, loginLocal, updateLocal, deleteLocal, loginGuest,
     signUp, signIn, recover, renameCloud, changePassword, newRecoveryCode, setPassword, googleSignIn, deleteCloudAccount, signOut,
     syncNow: () => pull(false), friendly

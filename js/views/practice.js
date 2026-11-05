@@ -78,6 +78,7 @@
     el.innerHTML = `
       <div class="page-head"><h1>✏️ Practice Problems</h1>
         <p class="muted">Numbers are randomized every time — click <b>New numbers</b> to re-practice the same concept. Answers within ±2% count as correct.</p></div>
+      ${Paywall.isLocked() ? Paywall.banner(`Free sample: ${PROBLEMS.length + CONCEPTS.length} of ${((CONTENT_META.totals || {}).problems || 0) + ((CONTENT_META.totals || {}).concepts || 0)} problems.`) : ''}
       <div class="filters card">
         <label>Topic <select id="fTopic"><option value="all">All topics</option>${SPEC.topics.map((t) => `<option value="${t.id}">${t.name}</option>`).join('')}</select></label>
         <label>Type <select id="fKind"><option value="all">Calculation + concept</option><option value="num">Calculations only</option><option value="mc">Concepts only</option></select></label>
@@ -92,6 +93,7 @@
 
     $('#fTopic', el).value = st.topic;
     $('#fKind', el).value = st.kind;
+    Paywall.bind(el);
     const area = $('#probArea', el);
 
     const onFilter = () => {

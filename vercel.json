@@ -2,6 +2,9 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "functions": {
+    "api/content.js": { "includeFiles": "api/_content/**" }
+  },
   "rewrites": [
     { "source": "/checkout", "destination": "/api/checkout" }
   ],

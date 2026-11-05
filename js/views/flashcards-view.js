@@ -10,6 +10,7 @@
   global.Flash = { dueCount: (topic) => FLASHCARDS.filter((c) => (!topic || topic === 'all' || c.topic === topic) && isDue(c.id)).length };
 
   VIEWS.flashcards = function (el, params, q) {
+    if (Paywall.gate(el, 'Flashcards are part of full access')) return;
     let topic = q.topic || 'all', cram = false, deck = [], i = 0, flipped = false, sess = { right: 0, wrong: 0 };
 
     el.innerHTML = `

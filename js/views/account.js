@@ -202,6 +202,28 @@
       <a class="btn primary" href="#/login">Back to sign in</a></div>`;
   };
 
+  const day = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : '');
+  function subscriptionCard(u) {
+    if (!Auth.cloudEnabled) return '';
+    const a = u.type === 'cloud' ? Auth.access : null;
+    let body;
+    if (a && a.status === 'comp') body = '<p>✅ <b>Full access</b> (complimentary).</p>';
+    else if (a && a.active) {
+      const when = a.status === 'trialing' && a.trialEnd ? `Free trial — ends ${day(a.trialEnd)}`
+        : a.cancelAtPeriodEnd ? `Cancelled — access until ${day(a.currentPeriodEnd)}`
+        : a.currentPeriodEnd ? `Renews ${day(a.currentPeriodEnd)}` : 'Active';
+      body = `<p>✅ <b>Full access</b> · ${esc(when)}</p>
+        <p class="muted small">To update your payment method, view invoices or cancel, use the “manage subscription” link in the emails from Polar (our payment provider).</p>
+        <button class="btn ghost" data-recheck>Refresh status</button>`;
+    } else if (u.type === 'cloud') {
+      body = `<p>You’re on the <b>free sample</b>.</p>${Paywall.card('Unlock everything')}`;
+    } else {
+      body = `<p>You’re on the <b>free sample</b>. Subscriptions need an online account (email or Google), so your access follows you to every device.</p>
+        <button class="btn primary" data-subscribe>⭐ Create an account to subscribe</button>`;
+    }
+    return `<div class="card subscription-card"><h2>Subscription</h2>${body}</div>`;
+  }
+
   VIEWS.account = function (el) {
     const u = Auth.user;
     if (!u) { location.hash = '#/login'; return; }
@@ -215,6 +237,7 @@
         <div><h2>${esc(u.name)}</h2><p class="muted">${u.email ? esc(u.email) + ' · ' : ''}${typeLabel}</p>
         <p class="small">${st.attempts.length} problems attempted · ${st.exams.length} practice exams · last active ${rel(st.lastActive)}</p></div>
       </div>
+      ${subscriptionCard(u)}
       ${u.type === 'cloud' ? `
       <div class="card"><div class="card-head"><h2>Sync</h2><span id="syncPill"></span></div>
         <p class="muted small">Progress saves to this device instantly and to your account a few seconds later. When you open the site on another device, the two copies are merged — nothing you studied on either is lost.</p>
@@ -256,9 +279,11 @@
       </div></div>
       ${u.type !== 'guest' ? `<div class="card danger-zone"><h2>Danger zone</h2>
         <p class="muted small">${u.type === 'cloud' ? 'Permanently deletes your account and all synced progress.' : 'Deletes this profile and its progress from this device.'}</p>
+        ${u.type === 'cloud' && Auth.access && Auth.access.active && Auth.access.status !== 'comp' ? '<div class="callout warn">Deleting your account does <b>not</b> cancel your subscription. Cancel it first using the “manage subscription” link in your Polar emails.</div>' : ''}
         ${u.type === 'cloud' ? `<form id="delf" class="auth-form inline"><label>${u.hasPassword ? 'Confirm with your password<input id="delp" type="password" autocomplete="current-password">' : 'Type DELETE to confirm<input id="delp" type="text" autocomplete="off">'}</label><button class="btn danger" type="submit">Delete account</button></form>` : '<button class="btn danger" id="del">Delete profile</button>'}
       </div>` : ''}`;
 
+    Paywall.bind(el);
     const pill = () => {
       const p = $('#syncPill', el); if (!p) return;
       const s = Auth.status;

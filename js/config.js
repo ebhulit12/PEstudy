@@ -11,6 +11,13 @@ window.APP_CONFIG = {
   // Where the API lives. Leave '' when the site and /api are on the same Vercel project.
   apiBase: '',
 
-  // Allow people to use the site without an account (guest / device profiles)
-  allowLocalProfiles: true
+  // Allow people to use the site without an account (guest / device profiles — free sample only)
+  allowLocalProfiles: true,
+
+  // Wording on the subscribe screens. Prices are charged by Polar; keep this in sync with the product.
+  subscription: {
+    name: 'PE MDM Prep — full access',
+    price: '$20/month',
+    trial: '7-day free trial'
+  }
 };

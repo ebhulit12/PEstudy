@@ -43,6 +43,7 @@
     const weak = SPEC.topics.map((t) => ({ t, s: stats[t.id] })).filter((x) => x.s && x.s.n >= 3).sort((a, b) => a.s.c / a.s.n - b.s.c / b.s.n)[0];
 
     el.innerHTML = `
+      ${Paywall.isLocked() && Auth.cloudEnabled ? Paywall.banner('You’re on the free sample. Get every note, problem, video, flashcard and timed practice exam.') : ''}
       <div class="hero card">
         <div class="hero-main">
           <h1>${daysLeft != null ? (daysLeft > 0 ? `<span class="big-num">${daysLeft}</span> days to your exam` : daysLeft === 0 ? 'Exam day — you’ve got this! 💪' : 'Exam date has passed') : 'Welcome to your PE MDM prep'}</h1>
@@ -85,6 +86,7 @@
         }).join('')}
       </section>`;
     bindTasks(el);
+    Paywall.bind(el);
   };
 
   function phaseStrip(plan) {

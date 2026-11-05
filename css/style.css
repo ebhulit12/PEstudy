@@ -330,6 +330,16 @@ body.gate .main { margin-left: 0; max-width: 1100px; margin-inline: auto; }
 @keyframes pulse { to { opacity: .3; } }
 .account-head { display: flex; align-items: center; gap: 18px; }
 .account-head h2 { margin: 0; }
+/* ---------- subscription / paywall ---------- */
+.paywall { max-width: 640px; margin: 10px auto 18px; text-align: left; border: 2px solid color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.paywall h2 { margin-top: 8px; }
+.paywall-badge { display: inline-block; font-size: .75em; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); }
+.paywall-list { list-style: none; padding: 0; margin: 12px 0 18px; }
+.paywall-list li { margin: 7px 0; }
+.paywall-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 16px; border-radius: 10px; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); font-size: .93em; }
+.locked-secs ul { color: var(--muted); }
+.subscription-card .paywall { margin: 12px 0 0; max-width: none; }
+.sidebar a.nav-upgrade { color: var(--accent); font-weight: 600; }
 .recovery-code { font: 700 1.35rem/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: .08em; text-align: center; padding: 16px; margin: 14px 0; border: 2px dashed var(--accent); border-radius: 10px; background: var(--accent-soft); user-select: all; word-break: break-all; }
 .saved-chk { margin: 14px 0; }
 #rcBox:not(:empty) { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }

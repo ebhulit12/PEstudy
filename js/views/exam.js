@@ -35,6 +35,7 @@
   }
 
   VIEWS.exam = function (el, params, q) {
+    if (Paywall.gate(el, 'Timed practice exams are part of full access')) return;
     const active = Store.s.activeExam;
     if (active && !active.submitted) return runExam(el, active);
     if (params[0] === 'review' && Store.s.lastExamDetail) return results(el, Store.s.lastExamDetail);

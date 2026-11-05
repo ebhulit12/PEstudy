@@ -3,7 +3,7 @@
 **Live site:** <https://pestudy-brown.vercel.app>
 
 A self-contained study site for the NCEES **PE Mechanical: Machine Design and Materials (MDM)** exam.
-No build step needed. Host it free on **Vercel** (Hobby plan), or open `index.html` locally.
+No build step needed. Host it free on **Vercel** (Hobby plan). Full access is a paid subscription through Polar (see [`POLAR_SETUP.md`](POLAR_SETUP.md)); everyone else gets a free sample.
 
 ## Features
 
@@ -18,13 +18,14 @@ No build step needed. Host it free on **Vercel** (Hobby plan), or open `index.ht
 | ∑ **Formula Sheet** | Searchable, printable quick reference. |
 | 📈 **Progress** | Readiness score, accuracy by topic, activity heatmap, exam history, and backup export/import. |
 | 👤 **Logins** | Each person gets their own progress, plan and stats. **Online accounts** (email + password or Google, hosted on Vercel) sync across devices; **device profiles** (optional PIN) let several people share one browser; or continue as a guest. |
+| ⭐ **Subscriptions** | Polar checkout (7-day free trial, then monthly). Subscribers get all notes, problems, videos, flashcards and practice exams; the content is served only to them by `/api/content`. Guests, device profiles and non-subscribers get a free sample. |
 | 🎯 **Exam Strategy** / 🔗 **Resources** | Exam format, time management, handbook tips, exam-day checklist, official NCEES links and recommended references. |
 
 Progress is saved per user. Device profiles and guests are stored in that browser's `localStorage`; online accounts are also synced to the site's database and merged across devices (nothing studied on one device is lost when you open another).
 
 ## Running it
 
-- **Locally:** open `index.html` in Chrome, Edge, Firefox or Safari. (Math rendering uses KaTeX from a CDN, so you need an internet connection for equations to display nicely.)
+- **Locally:** run `npm install`, then `vercel dev` (see *Testing locally* below), and open <http://localhost:3000>. The study content is served by `/api/content`, so opening `index.html` directly from disk shows the app without any study content. KaTeX loads from a CDN, so you need an internet connection for equations to render.
 - **Vercel (recommended):** see *Deploying to Vercel* below.
 
 ## Deploying to Vercel
@@ -105,8 +106,10 @@ Details:
 
 ## Adding content
 
-- **Problems:** `js/data/problems.js`. Each problem has a `gen(rng)` function that picks random inputs and returns the prompt, answer, unit, solution `steps`, and likely wrong answers (`distract`) used to build multiple-choice options. Set `video: true` to also get a video walkthrough.
-- **Concept questions:** `js/data/concepts.js` · **Flashcards:** `js/data/flashcards.js` · **Notes:** `js/data/notes.js` · **Exam spec/weights:** `js/data/spec.js`.
+Study content lives in `api/_content/` (served only through `/api/content`, never as public files). The free sample is chosen automatically (first notes section per topic, first 2 problems and concept questions per topic; see `SAMPLE` in `api/_lib/content.js`). Keep the existing layout in `problems.js` (each problem is a top-level `  add({ … });` block), since the sample builder relies on it.
+
+- **Problems:** `api/_content/problems.js`. Each problem has a `gen(rng)` function that picks random inputs and returns the prompt, answer, unit, solution `steps`, and likely wrong answers (`distract`) used to build multiple-choice options. Set `video: true` to also get a video walkthrough.
+- **Concept questions:** `api/_content/concepts.js` · **Flashcards:** `api/_content/flashcards.js` · **Notes:** `api/_content/notes.js` · **Exam spec/weights:** `js/data/spec.js` (public).
 
 ## Disclaimer
 
