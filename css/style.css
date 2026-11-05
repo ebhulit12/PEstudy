@@ -242,6 +242,11 @@ details > summary { cursor: pointer; font-weight: 600; }
 @media (max-width: 700px) { .sc-split { grid-template-columns: 1fr; } .stage { aspect-ratio: auto; min-height: 420px; max-height: none; } .sc-title h2 { font-size: 1.4rem; } }
 
 /* ---------- exam ---------- */
+.forms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 18px; }
+.forms-grid .form-card { margin-bottom: 0; }
+.form-card h2 { margin-top: 8px; }
+.choices.multi .letter.box { border-radius: 6px; background: transparent; font-size: 1.15em; }
+.choices.multi + #checkMulti { margin-bottom: 14px; }
 .exam-setup label { width: 100%; }
 .exam-bar { display: flex; align-items: center; gap: 12px; position: sticky; top: calc(var(--top) + 8px); z-index: 5; flex-wrap: wrap; }
 .timer { font-variant-numeric: tabular-nums; font-weight: 700; }

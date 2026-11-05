@@ -8,7 +8,7 @@
     all() {
       if (!this._all) {
         this._all = PROBLEMS.map((p) => Object.assign({ kind: 'num' }, p))
-          .concat(CONCEPTS.map((c) => Object.assign({ kind: 'mc', title: c.q.length > 70 ? c.q.slice(0, 67) + '…' : c.q, diff: 1 }, c)));
+          .concat(CONCEPTS.map((c) => Object.assign({ kind: c.type === 'multi' ? 'multi' : 'mc', title: c.q.length > 70 ? c.q.slice(0, 67) + '…' : c.q, diff: c.type === 'multi' ? 2 : 1 }, c)));
         this._by = Object.fromEntries(this._all.map((p) => [p.id, p]));
       }
       return this._all;
@@ -25,11 +25,33 @@
       }
       const rng = U.makeRng(seed);
       const order = rng.shuffle(item.choices.map((_, i) => i));
+      if (item.kind === 'multi') { // "select all that apply": all-or-nothing, like the CBT
+        return {
+          item, seed, kind: 'multi', prompt: esc(item.q) + ' <b>(Select all that apply.)</b>',
+          choices: order.map((i) => item.choices[i]), correct: item.answers.map((a) => order.indexOf(a)).sort((a, b) => a - b),
+          explanation: item.exp
+        };
+      }
       return {
         item, seed, kind: 'mc', prompt: esc(item.q),
         choices: order.map((i) => item.choices[i]), correct: order.indexOf(item.ans),
         explanation: item.exp
       };
+    },
+    /** Grade an answer: index (single choice), array of indices (multi), or typed value (fill-in). */
+    isCorrect(inst, answer, fill) {
+      if (answer == null || answer === '') return false;
+      if (inst.kind === 'multi') {
+        const a = (Array.isArray(answer) ? answer : []).slice().sort((x, y) => x - y);
+        return a.length === inst.correct.length && a.every((v, i) => v === inst.correct[i]);
+      }
+      if (fill && inst.kind === 'num') return this.checkNumeric(inst, answer);
+      return answer === inst.correct;
+    },
+    correctLabel(inst) {
+      if (inst.kind === 'num') return `${fmt(inst.answer, 4)} ${esc(inst.unit || '')}`;
+      if (inst.kind === 'multi') return inst.correct.map((i) => esc(inst.choices[i])).join('; ');
+      return esc(inst.choices[inst.correct]);
     },
     checkNumeric(inst, value) {
       const v = parseFloat(String(value).replace(/,/g, ''));
@@ -47,6 +69,7 @@
     },
     solutionHTML(inst) {
       if (inst.kind === 'mc') return `<div class="solution"><p><b>Answer:</b> ${esc(inst.choices[inst.correct])}</p><p>${esc(inst.explanation)}</p></div>`;
+      if (inst.kind === 'multi') return `<div class="solution"><p><b>Correct selections:</b></p><ul>${inst.correct.map((i) => `<li>${esc(inst.choices[i])}</li>`).join('')}</ul><p>${esc(inst.explanation)}</p></div>`;
       const steps = inst.steps.map((s, i) => `<li><div>${s.t}</div>${s.m ? `<div class="m">\\[${s.m}\\]</div>` : ''}</li>`).join('');
       return `<div class="solution"><ol class="steps">${steps}</ol><p class="final"><b>Answer:</b> ${fmt(inst.answer, 4)} ${esc(inst.unit || '')}</p></div>`;
     },
@@ -54,7 +77,7 @@
     pool(filter = {}) {
       return this.all().filter((p) =>
         (!filter.topic || filter.topic === 'all' || p.topic === filter.topic) &&
-        (!filter.kind || filter.kind === 'all' || p.kind === filter.kind) &&
+        (!filter.kind || filter.kind === 'all' || p.kind === filter.kind || (filter.kind === 'mc' && p.kind === 'multi')) &&
         (!filter.diff || filter.diff === 'all' || String(p.diff) === String(filter.diff)) &&
         (!filter.bookmarked || Store.s.bookmarks[p.id]));
     },
@@ -81,7 +104,7 @@
       ${Paywall.isLocked() ? Paywall.banner(`Free sample: ${PROBLEMS.length + CONCEPTS.length} of ${((CONTENT_META.totals || {}).problems || 0) + ((CONTENT_META.totals || {}).concepts || 0)} problems.`) : ''}
       <div class="filters card">
         <label>Topic <select id="fTopic"><option value="all">All topics</option>${SPEC.topics.map((t) => `<option value="${t.id}">${t.name}</option>`).join('')}</select></label>
-        <label>Type <select id="fKind"><option value="all">Calculation + concept</option><option value="num">Calculations only</option><option value="mc">Concepts only</option></select></label>
+        <label>Type <select id="fKind"><option value="all">Calculation + concept</option><option value="num">Calculations only</option><option value="mc">Concepts only</option><option value="multi">Select all that apply</option></select></label>
         <label>Difficulty <select id="fDiff"><option value="all">Any</option><option value="1">★ Basic</option><option value="2">★★ Exam-level</option><option value="3">★★★ Challenging</option></select></label>
         <label>Answer as <select id="fMode"><option value="numeric">Type the number</option><option value="mc">Multiple choice</option></select></label>
         <label class="chk"><input type="checkbox" id="fBook"> Bookmarked only</label>
@@ -109,7 +132,7 @@
       $('#probList', el).innerHTML = pool.map((p) => {
         const lr = Bank.lastResult(p.id);
         return `<a href="javascript:void 0" data-id="${p.id}" class="pl-item"><span class="dot" style="background:${SPEC.byId[p.topic].color}"></span>
-          <span class="pl-title">${esc(p.title)}</span><span class="muted small">${p.kind === 'num' ? '🔢' : '💡'} ${'★'.repeat(p.diff || 1)}</span>
+          <span class="pl-title">${esc(p.title)}</span><span class="muted small">${p.kind === 'num' ? '🔢' : p.kind === 'multi' ? '☑️' : '💡'} ${'★'.repeat(p.diff || 1)}</span>
           ${lr === true ? '<span class="ok">✓</span>' : lr === false ? '<span class="bad">✗</span>' : ''}</a>`;
       }).join('') || '<p class="muted">No problems match.</p>';
       $$('.pl-item', el).forEach((a) => a.addEventListener('click', () => { show(a.dataset.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }));
@@ -134,7 +157,8 @@
       st.current = inst; st.answered = false;
       st.history.push(id);
       const it = inst.item, tp = SPEC.byId[it.topic];
-      const useMC = inst.kind === 'mc' || st.mode === 'mc';
+      const multi = inst.kind === 'multi';
+      const useMC = inst.kind === 'mc' || (inst.kind === 'num' && st.mode === 'mc');
       area.innerHTML = `
         <article class="card problem">
           <div class="prob-meta"><span class="tag" style="--c:${tp.color}">${tp.name}</span><span class="muted small">${esc(it.sub || '')}</span>
@@ -144,8 +168,11 @@
           <div class="prompt">${inst.prompt}</div>
           ${Bank.figureHTML(inst)}
           <div class="answer-area">
-            ${useMC
-              ? `<div class="choices">${inst.choices.map((_, i) => `<button class="choice" data-i="${i}"><span class="letter">${'ABCD'[i]}</span> ${Bank.choiceLabel(inst, i)}</button>`).join('')}</div>`
+            ${multi
+              ? `<div class="choices multi">${inst.choices.map((_, i) => `<button class="choice" data-i="${i}" aria-pressed="false"><span class="letter box">☐</span> ${Bank.choiceLabel(inst, i)}</button>`).join('')}</div>
+                 <button class="btn primary" id="checkMulti">Check answer</button>`
+              : useMC
+              ? `<div class="choices">${inst.choices.map((_, i) => `<button class="choice" data-i="${i}"><span class="letter">${'ABCDEF'[i]}</span> ${Bank.choiceLabel(inst, i)}</button>`).join('')}</div>`
               : `<div class="num-entry"><input id="ans" type="text" inputmode="decimal" placeholder="Your answer" autocomplete="off"><span class="unit">${esc(inst.unit || '')}</span><button class="btn primary" id="submit">Check</button></div>`}
           </div>
           <div id="feedback"></div>
@@ -170,12 +197,32 @@
         }
         $('#feedback', area).innerHTML = ok
           ? `<div class="fb ok">✅ Correct! ${inst.kind === 'num' ? `Answer: ${fmt(inst.answer, 4)} ${esc(inst.unit || '')}` : ''}</div>`
-          : `<div class="fb bad">❌ Not quite${chosen != null ? '' : ''}. ${inst.kind === 'num' ? `Correct answer: <b>${fmt(inst.answer, 4)} ${esc(inst.unit || '')}</b>` : `Correct answer: <b>${esc(inst.choices[inst.correct])}</b>`}</div>`;
+          : `<div class="fb bad">❌ Not quite. Correct answer: <b>${Bank.correctLabel(inst)}</b></div>`;
         showSolution();
       };
       const showSolution = () => { $('#sol', area).innerHTML = `<h3>Solution</h3>${Bank.solutionHTML(inst)}`; renderMath($('#sol', area)); };
 
-      if (useMC) {
+      if (multi) {
+        const picked = new Set();
+        $$('.choice', area).forEach((b) => b.addEventListener('click', () => {
+          if (st.answered) return;
+          const i = +b.dataset.i;
+          if (picked.has(i)) picked.delete(i); else picked.add(i);
+          b.classList.toggle('sel', picked.has(i));
+          b.setAttribute('aria-pressed', String(picked.has(i)));
+          b.querySelector('.box').textContent = picked.has(i) ? '☑' : '☐';
+        }));
+        $('#checkMulti', area).addEventListener('click', () => {
+          if (st.answered) return;
+          if (!picked.size) return U.toast('Select one or more answers');
+          $$('.choice', area).forEach((x, i) => {
+            x.classList.add('locked');
+            if (inst.correct.includes(i)) x.classList.add('right');
+            else if (picked.has(i)) x.classList.add('wrong');
+          });
+          grade(Bank.isCorrect(inst, [...picked]));
+        });
+      } else if (useMC) {
         $$('.choice', area).forEach((b) => b.addEventListener('click', () => {
           if (st.answered) return;
           const i = +b.dataset.i;

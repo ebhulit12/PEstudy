@@ -10,11 +10,11 @@ No build step needed. Host it free on **Vercel** (Hobby plan). Full access is a 
 | Area | What you get |
 |---|---|
 | 🗓️ **Study Planner** | Enter your exam date, start date, weekly hours, study days and a 1–5 confidence rating per topic. It builds a week-by-week, day-by-day plan in three phases (**Learn → Practice exams → Final review**), with hours weighted by the NCEES spec, your confidence, and (optionally) your measured accuracy. Tasks can be checked off, it tells you when you're behind, and the plan exports to your calendar (`.ics`). |
-| 📘 **Study Notes** | Notes for all 8 spec areas (Eng. Practice, Statics/Dynamics, Materials, Strength of Materials, Vibration, Mechanical Components, Joints & Fasteners, Supportive Knowledge), with key equations, tables, pitfalls and NCEES-handbook search tips. |
-| ✏️ **Practice Problems** | 51 **randomized** calculation problems (new numbers every attempt, so effectively unlimited practice) plus 70 conceptual questions. Answer by typing the number (±2% tolerance) or multiple choice, with hints and full step-by-step solutions. |
-| ▶️ **Video Problems** | 20 narrated, auto-advancing walkthroughs. Each shows the problem, gives a 20-second "pause & try" countdown, then plays the solution step by step with diagrams, captions and optional spoken narration (browser text-to-speech). You can replay with new numbers. Curated YouTube lesson searches for every topic are included too. |
-| ⏱️ **Practice Exam** | CBT-style timed exams (10/20/40/80 questions, 6 min/question by default) weighted like the spec or toward your weak topics, with a navigator, flag-for-review, results by topic, and a review of every missed question. |
-| 🃏 **Flashcards** | 73 formula/concept cards with Leitner spaced repetition. |
+| 📘 **Study Notes** | 50 sections across all 8 spec areas (Eng. Practice, Statics/Dynamics, Materials, Strength of Materials, Vibration, Mechanical Components, Joints & Fasteners, Supportive Knowledge), with key equations, tables, pitfalls, NCEES-handbook search tips, and a worked example in every topic. |
+| ✏️ **Practice Problems** | 177 **randomized** calculation problem types (new numbers every attempt, so effectively unlimited practice; weighted by exam share, most exam-level or multi-step) plus 323 conceptual questions, including 36 CBT-style **select-all-that-apply**. Answer by typing the number (±2% tolerance) or multiple choice, with hints and full step-by-step solutions. |
+| ▶️ **Video Problems** | 49 narrated, auto-advancing walkthroughs covering every topic. Each shows the problem, gives a 20-second "pause & try" countdown, then plays the solution step by step with diagrams, captions and optional spoken narration (browser text-to-speech). You can replay with new numbers. Curated YouTube lesson searches for every topic are included too. |
+| ⏱️ **Practice Exam** | Two fixed full-length forms (**Practice Exam A and B**: the same 80 questions every attempt, so scores are comparable) plus custom timed exams (10/20/40/80 questions) weighted like the spec or toward your weak topics. Exams mix multiple-choice, select-all-that-apply and fill-in-the-number questions like the CBT, with a navigator, flag-for-review, results by topic, and a review of every missed question. |
+| 🃏 **Flashcards** | 206 formula/concept cards with Leitner spaced repetition. |
 | ∑ **Formula Sheet** | Searchable, printable quick reference. |
 | 📈 **Progress** | Readiness score, accuracy by topic, activity heatmap, exam history, and backup export/import. |
 | 👤 **Logins** | Each person gets their own progress, plan and stats. **Online accounts** (email + password or Google, hosted on Vercel) sync across devices; **device profiles** (optional PIN) let several people share one browser; or continue as a guest. |
@@ -106,10 +106,13 @@ Details:
 
 ## Adding content
 
-Study content lives in `api/_content/` (served only through `/api/content`, never as public files). The free sample is chosen automatically (first notes section per topic, first 2 problems and concept questions per topic; see `SAMPLE` in `api/_lib/content.js`). Keep the existing layout in `problems.js` (each problem is a top-level `  add({ … });` block), since the sample builder relies on it.
+Study content lives in `api/_content/` (served only through `/api/content`, never as public files). The free sample is chosen automatically (first notes section per topic, first 2 problems and concept questions per topic; see `SAMPLE` in `api/_lib/content.js`). Keep the existing layout in the problem files (each problem is a top-level `  add({ … });` block), since the sample builder relies on it.
 
-- **Problems:** `api/_content/problems.js`. Each problem has a `gen(rng)` function that picks random inputs and returns the prompt, answer, unit, solution `steps`, and likely wrong answers (`distract`) used to build multiple-choice options. Set `video: true` to also get a video walkthrough.
-- **Concept questions:** `api/_content/concepts.js` · **Flashcards:** `api/_content/flashcards.js` · **Notes:** `api/_content/notes.js` · **Exam spec/weights:** `js/data/spec.js` (public).
+Each kind has a base file plus per-topic add-on files that the builder loads automatically (base first, then alphabetically): `problems.js` + `problems-<topic>.js`, `concepts.js` + `concepts-<topic>.js`, `flashcards.js` + `flashcards-<topic>.js`, `notes.js` + `notes-<topic>.js`.
+
+- **Problems:** each has a `gen(rng)` function that picks random inputs and returns the prompt, answer, unit, solution `steps`, and likely wrong answers (`distract`) used to build multiple-choice options. Set `video: true` to also get a video walkthrough. Problem ids must be unique (the builder rejects duplicates).
+- **Concept questions:** single answer `{ q, choices, ans, exp }`, or select-all-that-apply `{ type: 'multi', q, choices, answers: [ … ], exp }` (see `concepts-multi.js`; graded all-or-nothing).
+- **Notes:** add-on files push sections onto `window.NOTES[topic]`. · **Exam spec/weights:** `js/data/spec.js` (public). · **Fixed exam forms:** `FORMS` in `js/views/exam.js` (changing content changes which questions a form draws).
 
 ## Disclaimer
 
