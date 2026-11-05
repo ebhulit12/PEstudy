@@ -13,11 +13,19 @@ const DIR = path.join(__dirname, '..', '_content');
 const SAMPLE = { problemsPerTopic: 2, conceptsPerTopic: 2, notesSectionsPerTopic: 1 };
 const read = (f) => fs.readFileSync(path.join(DIR, f), 'utf8');
 
-/** Evaluate a pure-data file (notes / concepts / flashcards) and return its window globals. */
-function evalData(file) {
+/** Content files of one kind: the base file (e.g. problems.js) first, then problems-*.js alphabetically.
+    Add-on files extend the base: problems/concepts/flashcards concat onto the window array,
+    notes push sections onto window.NOTES[topic]. */
+function filesOf(kind) {
+  const extra = fs.readdirSync(DIR).filter((f) => f.startsWith(kind + '-') && f.endsWith('.js')).sort();
+  return [kind + '.js'].concat(extra);
+}
+
+/** Evaluate pure-data files (notes / concepts / flashcards) in order and return their window globals. */
+function evalData(files) {
   const win = {};
   const ctx = vm.createContext({ window: win, R: String.raw });
-  vm.runInContext(read(file), ctx, { filename: file, timeout: 2000 });
+  for (const file of files) vm.runInContext(read(file), ctx, { filename: file, timeout: 2000 });
   return win;
 }
 
@@ -45,12 +53,15 @@ function splitProblems(src) {
 let cache = null;
 function build() {
   if (cache) return cache;
-  const notesSrc = read('notes.js'), problemsSrc = read('problems.js'), conceptsSrc = read('concepts.js'), cardsSrc = read('flashcards.js');
-  const NOTES = evalData('notes.js').NOTES;
-  const CONCEPTS = evalData('concepts.js').CONCEPTS;
-  const FLASHCARDS = evalData('flashcards.js').FLASHCARDS;
-  const parts = splitProblems(problemsSrc);
-  const adds = parts.filter((p) => p.add);
+  const F = { notes: filesOf('notes'), problems: filesOf('problems'), concepts: filesOf('concepts'), flashcards: filesOf('flashcards') };
+  const src = (kind) => F[kind].map(read).join('\n;\n');
+  const NOTES = evalData(F.notes).NOTES;
+  const CONCEPTS = evalData(F.concepts).CONCEPTS;
+  const FLASHCARDS = evalData(F.flashcards).FLASHCARDS;
+  const fileParts = F.problems.map((f) => splitProblems(read(f)));
+  const adds = fileParts.flat().filter((p) => p.add);
+  const ids = new Set();
+  for (const p of adds) { if (!p.id || ids.has(p.id)) throw new Error('Duplicate or missing problem id: ' + p.id); ids.add(p.id); }
 
   // ---- choose the free sample (first N per topic, in file order)
   const perTopic = {};
@@ -66,7 +77,7 @@ function build() {
     sampleNotes[topic] = secs.slice(0, SAMPLE.notesSectionsPerTopic);
     lockedSections[topic] = secs.slice(SAMPLE.notesSectionsPerTopic).map((s) => s.title);
   }
-  const sampleProblemsSrc = parts.filter((p) => !p.add || keepProblem.has(p.id)).map((p) => p.text).join('\n');
+  const sampleProblemsSrc = fileParts.map((parts) => parts.filter((p) => !p.add || keepProblem.has(p.id)).map((p) => p.text).join('\n')).join('\n;\n');
 
   const totals = {
     problems: adds.length, concepts: CONCEPTS.length, flashcards: FLASHCARDS.length,
@@ -76,14 +87,14 @@ function build() {
   const header = (tier, extra) => `/* PE MDM Prep study content (${tier}) */\nwindow.CONTENT_TIER = ${JSON.stringify(tier)};\nwindow.CONTENT_META = ${JSON.stringify(Object.assign({ totals }, extra || {}))};\n`;
 
   cache = {
-    full: header('full') + [notesSrc, problemsSrc, conceptsSrc, cardsSrc].join('\n;\n'),
+    full: header('full') + [src('notes'), src('problems'), src('concepts'), src('flashcards')].join('\n;\n'),
     sample: header('sample', { lockedSections, sample: SAMPLE }) + [
       `window.NOTES = ${JSON.stringify(sampleNotes)};`,
       sampleProblemsSrc,
       `window.CONCEPTS = ${JSON.stringify(sampleConcepts)};`,
       'window.FLASHCARDS = [];'
     ].join('\n;\n'),
-    stats: { totals, sampleProblems: keepProblem.size, sampleConcepts: sampleConcepts.length }
+    stats: { totals, files: F, sampleProblems: keepProblem.size, sampleConcepts: sampleConcepts.length }
   };
   return cache;
 }

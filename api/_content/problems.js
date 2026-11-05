@@ -71,7 +71,7 @@
         answer: T, unit: 'lbf·in',
         steps: [
           { t: 'Power equals torque times angular velocity. In US units with hp and rpm, the constant is 63,025 for lbf·in.', m: R`H = \frac{T n}{63{,}025} \;\Rightarrow\; T = \frac{63{,}025\,H}{n}` },
-          { t: 'Substitute.', m: R`T = \frac{63{,}025(${H})}{${n}} = ${fm(T, 4)}\ \text{lbf·in}` }
+          { t: 'Substitute.', m: R`T = \frac{63{,}025(${H})}{${n}} = ${fm(T, 4)}\ \text{lbf}\cdot\text{in}` }
         ],
         distract: [(5252 * H) / n, (33000 * H) / n, (63025 * H) / n / 12]
       };
@@ -176,9 +176,9 @@
         answer: T, unit: 'ft·lbf',
         steps: [
           { t: 'Convert weight to mass in slugs and radius to feet.', m: R`m = \frac{W}{g} = \frac{${W}}{32.174} = ${fm(m, 4)}\ \text{slug} \qquad r = \frac{${D}/2}{12} = ${fm(rr, 4)}\ \text{ft}` },
-          { t: 'Mass moment of inertia of a solid disk about its axis:', m: R`I = \tfrac12 m r^2 = \tfrac12(${fm(m, 4)})(${fm(rr, 4)})^2 = ${fm(I, 4)}\ \text{slug·ft}^2` },
+          { t: 'Mass moment of inertia of a solid disk about its axis:', m: R`I = \tfrac12 m r^2 = \tfrac12(${fm(m, 4)})(${fm(rr, 4)})^2 = ${fm(I, 4)}\ \text{slug}\cdot\text{ft}^2` },
           { t: 'Angular acceleration from rest:', m: R`\omega = \frac{2\pi(${n})}{60} = ${fm(w, 4)}\ \text{rad/s} \qquad \alpha = \frac{\omega}{t} = ${fm(al, 4)}\ \text{rad/s}^2` },
-          { t: 'Apply Newton’s second law for rotation.', m: R`T = I\alpha = ${fm(I, 4)} \times ${fm(al, 4)} = ${fm(T, 4)}\ \text{ft·lbf}` }
+          { t: 'Apply Newton’s second law for rotation.', m: R`T = I\alpha = ${fm(I, 4)} \times ${fm(al, 4)} = ${fm(T, 4)}\ \text{ft}\cdot\text{lbf}` }
         ],
         distract: [T * 2, W * rr * rr * 0.5 * al, T * 32.174 / 12]
       };
@@ -198,7 +198,7 @@
         prompt: `A spring with stiffness <b>${k} lbf/in</b> is compressed <b>${x} in</b> and released, pushing a <b>${W} lbf</b> block along a frictionless horizontal surface. What is the block's speed (ft/s) when it leaves the spring?`,
         answer: v, unit: 'ft/s',
         steps: [
-          { t: 'Spring potential energy converts entirely to kinetic energy. Compute the stored energy and convert in·lbf to ft·lbf.', m: R`U = \tfrac12 kx^2 = \tfrac12(${k})(${x})^2 = ${fm(0.5 * k * x * x, 4)}\ \text{in·lbf} = ${fm(E, 4)}\ \text{ft·lbf}` },
+          { t: 'Spring potential energy converts entirely to kinetic energy. Compute the stored energy and convert in·lbf to ft·lbf.', m: R`U = \tfrac12 kx^2 = \tfrac12(${k})(${x})^2 = ${fm(0.5 * k * x * x, 4)}\ \text{in}\cdot\text{lbf} = ${fm(E, 4)}\ \text{ft}\cdot\text{lbf}` },
           { t: 'Mass in slugs:', m: R`m = ${W}/32.174 = ${fm(m, 4)}\ \text{slug}` },
           { t: 'Solve the energy balance for v.', m: R`\tfrac12 mv^2 = U \Rightarrow v = \sqrt{\frac{2(${fm(E, 4)})}{${fm(m, 4)}}} = ${fm(v, 4)}\ \text{ft/s}` }
         ],
@@ -348,7 +348,7 @@
         answer: s, unit: 'psi',
         fig: { name: 'beam', data: { P: `${f(Pl, 5)} lbf`, a: 0.5, L: `${L} in` } },
         steps: [
-          { t: 'Maximum moment for a center point load on a simple span occurs under the load:', m: R`M_{max} = \frac{PL}{4} = \frac{${Pl}(${L})}{4} = ${fm(M, 5)}\ \text{lbf·in}` },
+          { t: 'Maximum moment for a center point load on a simple span occurs under the load:', m: R`M_{max} = \frac{PL}{4} = \frac{${Pl}(${L})}{4} = ${fm(M, 5)}\ \text{lbf}\cdot\text{in}` },
           { t: 'Section properties (bending about the strong axis):', m: R`I = \frac{bh^3}{12} = \frac{${b}(${h})^3}{12} = ${fm(I, 4)}\ \text{in}^4 \qquad c = h/2 = ${c}\ \text{in}` },
           { t: 'Flexure formula:', m: R`\sigma_{max} = \frac{Mc}{I} = \frac{${fm(M, 5)}(${c})}{${fm(I, 4)}} = ${fm(s, 4)}\ \text{psi}` }
         ],
@@ -369,7 +369,7 @@
         prompt: `A simply supported steel beam spans <b>${L} ft</b> and carries a uniform load of <b>${w} lbf/ft</b> (including self-weight). The allowable bending stress is <b>${f(sa, 5)} psi</b>. What minimum elastic section modulus S (in³) is required?`,
         answer: S, unit: 'in³',
         steps: [
-          { t: 'Maximum moment at midspan for a uniform load:', m: R`M_{max} = \frac{wL^2}{8} = \frac{${w}(${L})^2}{8} = ${fm(M / 12, 5)}\ \text{ft·lbf} = ${fm(M, 5)}\ \text{in·lbf}` },
+          { t: 'Maximum moment at midspan for a uniform load:', m: R`M_{max} = \frac{wL^2}{8} = \frac{${w}(${L})^2}{8} = ${fm(M / 12, 5)}\ \text{ft}\cdot\text{lbf} = ${fm(M, 5)}\ \text{in}\cdot\text{lbf}` },
           { t: 'Since σ = M/S, the required section modulus is:', m: R`S_{req} = \frac{M_{max}}{\sigma_{allow}} = \frac{${fm(M, 5)}}{${fm(sa, 5)}} = ${fm(S, 4)}\ \text{in}^3` }
         ],
         distract: [S / 12, S * 2, (w * L * L) / 2 * 12 / sa]
@@ -567,8 +567,8 @@
         answer: z, unit: '',
         fig: { name: 'springMass', data: { c: 'c' } },
         steps: [
-          { t: 'Units are in inches, so convert weight to mass using g = 386.1 in/s².', m: R`m = \frac{${W}}{386.1} = ${fm(m, 4)}\ \text{lbf·s}^2/\text{in}` },
-          { t: 'Critical damping coefficient:', m: R`c_c = 2\sqrt{km} = 2\sqrt{${k}(${fm(m, 4)})} = ${fm(2 * Math.sqrt(k * m), 4)}\ \text{lbf·s/in}` },
+          { t: 'Units are in inches, so convert weight to mass using g = 386.1 in/s².', m: R`m = \frac{${W}}{386.1} = ${fm(m, 4)}\ \text{lbf}\cdot\text{s}^2/\text{in}` },
+          { t: 'Critical damping coefficient:', m: R`c_c = 2\sqrt{km} = 2\sqrt{${k}(${fm(m, 4)})} = ${fm(2 * Math.sqrt(k * m), 4)}\ \text{lbf}\cdot\text{s/in}` },
           { t: 'Damping ratio:', m: R`\zeta = \frac{c}{c_c} = ${fm(z, 3)}` }
         ],
         distract: [c / (2 * Math.sqrt(k * W)), c / Math.sqrt(k * m), c / (2 * Math.sqrt(k * (W / 32.174)))]
@@ -739,7 +739,7 @@
         steps: [
           { t: 'Mean diameter and lead (single start → lead = pitch):', m: R`d_m = d - \frac{p}{2} = ${d} - \frac{${p}}{2} = ${fm(dm, 4)}\ \text{in} \qquad l = ${p}\ \text{in}` },
           { t: 'Raising torque for a square thread:', m: R`T_R = \frac{Fd_m}{2}\left(\frac{l + \pi f d_m}{\pi d_m - fl}\right)` },
-          { t: 'Evaluate.', m: R`T_R = \frac{${F}(${fm(dm, 4)})}{2}\left(\frac{${p} + \pi(${fr})(${fm(dm, 4)})}{\pi(${fm(dm, 4)}) - ${fr}(${p})}\right) = ${fm(T, 4)}\ \text{lbf·in}` },
+          { t: 'Evaluate.', m: R`T_R = \frac{${F}(${fm(dm, 4)})}{2}\left(\frac{${p} + \pi(${fr})(${fm(dm, 4)})}{\pi(${fm(dm, 4)}) - ${fr}(${p})}\right) = ${fm(T, 4)}\ \text{lbf}\cdot\text{in}` },
           { t: `Efficiency e = Fl/(2πT) = ${f(eff * 100, 3)}%. The screw is self-locking because πfd<sub>m</sub> = ${f(PI * fr * dm, 3)} > l = ${p}.` }
         ],
         distract: [((F * d) / 2) * ((l + PI * fr * d) / (PI * d - fr * l)), ((F * dm) / 2) * ((PI * fr * dm - l) / (PI * dm + fr * l)), (F * l) / (2 * PI)]
@@ -785,7 +785,7 @@
         answer: T, unit: 'lbf·in',
         steps: [
           { t: 'Uniform wear: friction acts effectively at the mean radius (D + d)/4 for each friction surface.', m: R`T = N\,\frac{fF(D + d)}{4}` },
-          { t: 'Evaluate.', m: R`T = ${N}\cdot\frac{${fr}(${F})(${D} + ${d})}{4} = ${fm(T, 4)}\ \text{lbf·in}` }
+          { t: 'Evaluate.', m: R`T = ${N}\cdot\frac{${fr}(${F})(${D} + ${d})}{4} = ${fm(T, 4)}\ \text{lbf}\cdot\text{in}` }
         ],
         distract: [(fr * F * (D + d)) / 4, ((N * fr * F) / 3) * ((D ** 3 - d ** 3) / (D ** 2 - d ** 2)), (N * fr * F * (D + d)) / 2]
       };
@@ -804,7 +804,7 @@
         prompt: `A solid line shaft transmits <b>${H} hp</b> at <b>${n} rpm</b>. If the allowable shear stress is <b>${f(ta, 5)} psi</b>, what minimum diameter is required (torsion only)?`,
         answer: d, unit: 'in',
         steps: [
-          { t: 'Torque:', m: R`T = \frac{63{,}025H}{n} = \frac{63{,}025(${H})}{${n}} = ${fm(T, 4)}\ \text{lbf·in}` },
+          { t: 'Torque:', m: R`T = \frac{63{,}025H}{n} = \frac{63{,}025(${H})}{${n}} = ${fm(T, 4)}\ \text{lbf}\cdot\text{in}` },
           { t: 'Solve τ = 16T/(πd³) for d.', m: R`d = \left(\frac{16T}{\pi\tau_{allow}}\right)^{1/3} = \left(\frac{16(${fm(T, 4)})}{\pi(${ta})}\right)^{1/3} = ${fm(d, 4)}\ \text{in}` }
         ],
         distract: [Math.cbrt((32 * T) / (PI * ta)), Math.sqrt((16 * T) / (PI * ta)), Math.cbrt((16 * (5252 * H / n)) / (PI * ta))]
@@ -826,7 +826,7 @@
         steps: [
           { t: 'Average angular speed:', m: R`\omega = \frac{2\pi(${n})}{60} = ${fm(w, 4)}\ \text{rad/s}` },
           { t: 'Energy change related to speed fluctuation:', m: R`\Delta E = \tfrac12 I(\omega_{max}^2 - \omega_{min}^2) = C_s I\omega^2` },
-          { t: 'Solve for I.', m: R`I = \frac{\Delta E}{C_s\omega^2} = \frac{${dE}}{${Cs}(${fm(w, 4)})^2} = ${fm(I, 4)}\ \text{slug·ft}^2` }
+          { t: 'Solve for I.', m: R`I = \frac{\Delta E}{C_s\omega^2} = \frac{${dE}}{${Cs}(${fm(w, 4)})^2} = ${fm(I, 4)}\ \text{slug}\cdot\text{ft}^2` }
         ],
         distract: [(2 * dE) / (Cs * w * w), dE / (Cs * n * n), dE / (w * w)]
       };
@@ -895,8 +895,8 @@
         fig: { name: 'bolt', data: {} },
         steps: [
           { t: 'Recommended preload for reusable connections:', m: R`F_i = 0.75A_tS_p = 0.75(${b.At})(${g.Sp}) = ${fm(Fi, 4)}\ \text{lbf}` },
-          { t: 'Torque–preload relation (d = nominal diameter):', m: R`T = KF_id = ${K}(${fm(Fi, 4)})(${b.d}) = ${fm(T * 12, 4)}\ \text{lbf·in}` },
-          { t: 'Convert to lbf·ft.', m: R`T = \frac{${fm(T * 12, 4)}}{12} = ${fm(T, 4)}\ \text{lbf·ft}` }
+          { t: 'Torque–preload relation (d = nominal diameter):', m: R`T = KF_id = ${K}(${fm(Fi, 4)})(${b.d}) = ${fm(T * 12, 4)}\ \text{lbf}\cdot\text{in}` },
+          { t: 'Convert to lbf·ft.', m: R`T = \frac{${fm(T * 12, 4)}}{12} = ${fm(T, 4)}\ \text{lbf}\cdot\text{ft}` }
         ],
         distract: [T * 12, (K * 0.9 * b.At * g.Sp * b.d) / 12, (K * Fi * b.d * 0.5) / 12]
       };
@@ -1114,5 +1114,5 @@
     }
   });
 
-  window.PROBLEMS = P;
+  window.PROBLEMS = (window.PROBLEMS || []).concat(P);
 })();

@@ -12,7 +12,7 @@ window.NOTES = {
 <p>When stiffness is in lbf/in, use mass in <b>lbf·s²/in</b> (\(m = W/386.1\)). Mixing in/ft is the #1 vibration mistake.</p>
 <table class="tbl"><tr><th>Quantity</th><th>Handy conversion</th></tr>
 <tr><td>Power</td><td>1 hp = 550 ft·lbf/s = 33,000 ft·lbf/min = 745.7 W</td></tr>
-<tr><td>Torque–power</td><td>\(H_{hp} = \dfrac{T_{\text{lbf·in}}\, n_{rpm}}{63{,}025} = \dfrac{T_{\text{lbf·ft}}\, n_{rpm}}{5252}\)</td></tr>
+<tr><td>Torque–power</td><td>\(H_{hp} = \dfrac{T_{\text{lbf}\cdot\text{in}}\, n_{rpm}}{63{,}025} = \dfrac{T_{\text{lbf}\cdot\text{ft}}\, n_{rpm}}{5252}\)</td></tr>
 <tr><td>Power (SI)</td><td>\(P = T\omega\), \(\omega = 2\pi n/60\)</td></tr>
 <tr><td>Pressure</td><td>1 psi = 6.895 kPa; 1 ksi = 6.895 MPa; 1 atm = 14.696 psi</td></tr>
 <tr><td>Energy</td><td>1 Btu = 778.17 ft·lbf</td></tr>
